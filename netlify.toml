@@ -1,0 +1,11 @@
+# Настройки Netlify (временная копия сайта, пока не настроен cloud.ru).
+# Показывается только папка labcompass_site/dist — остальные файлы репозитория в интернет не попадают.
+[build]
+  publish = "labcompass_site/dist"
+  command = ""
+
+# Не индексировать временную копию в поисковиках: основной адрес — labcompass.ru
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex"

@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ЛабКомпас.ВЛК — калькулятор внутрилабораторного контроля</title>
+<style>
+:root {
+  --ink: #1f2933; --muted: #66727f; --line: #d9dee4; --bg: #f4f6f8; --card: #fff;
+  --blue: #2f5d8a; --blue-soft: #e8eef4; --ok: #2c7a3f; --ok-soft: #e5f3e8;
+  --bad: #b03030; --bad-soft: #fbe3e3; --warn: #c27a10; --warn-soft: #fdf1dc;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); background: var(--bg); }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 18px max(20px, calc(50% - 560px)); background: var(--blue); color: #fff; }
+.top h1 { margin: 0; font-size: 22px; }
+.logo { display: flex; align-items: center; gap: 9px; letter-spacing: .2px; }
+.logo svg { width: 28px; height: 28px; flex: none; }
+.logo .name span { font-weight: 400; opacity: .8; }
+.brand-line { margin: 0 0 6px; color: var(--ink); }
+.brand-line a { color: var(--blue); }
+.top .sub { margin: 2px 0 0; opacity: .85; }
+.privacy { background: rgba(255,255,255,.14); padding: 6px 12px; border-radius: 20px; font-size: 13px; }
+main { max-width: 1120px; margin: 20px auto; padding: 0 20px; display: grid; gap: 18px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+.card h2 { margin: 0 0 14px; font-size: 17px; display: flex; align-items: center; gap: 10px; }
+.step { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--blue); color: #fff; font-size: 14px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px 18px; align-items: start; }
+.grid label { display: grid; gap: 4px; font-weight: 600; font-size: 13px; }
+.grid small { font-weight: 400; color: var(--muted); }
+.delta { grid-column: span 2; display: grid; gap: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; width: max-content; }
+.seg button { border: 0; border-radius: 0; background: #fff; }
+.seg button.on { background: var(--blue); color: #fff; }
+input, select { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); width: 100%; }
+input:focus, select:focus { outline: 2px solid #9db8d3; border-color: var(--blue); }
+input.invalid { border-color: var(--bad); background: var(--bad-soft); }
+
+button, .btn { font: inherit; padding: 7px 13px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink); cursor: pointer; white-space: nowrap; }
+button:hover, .btn:hover { background: var(--blue-soft); }
+button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+button.primary:hover { background: #264d73; }
+button.danger { color: var(--bad); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.toolbar .spacer { flex: 1; }
+.hint { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+#grid { border-collapse: collapse; width: 100%; min-width: 980px; }
+#grid th { background: var(--blue-soft); font-size: 12px; font-weight: 600; padding: 7px 6px; text-align: center; position: sticky; top: 0; }
+#grid td { border-top: 1px solid var(--line); padding: 3px 4px; text-align: center; }
+#grid td.n { color: var(--muted); width: 34px; }
+#grid input, #grid select { padding: 5px 6px; border-color: #e6e9ed; text-align: right; min-width: 64px; }
+#grid input[data-f="date"] { text-align: left; min-width: 96px; }
+#grid select { min-width: 220px; text-align: left; }
+#grid input:hover, #grid select:hover { border-color: #b8c4d0; }
+#grid input:disabled { background: #f3f4f6; border-color: transparent; }
+#grid td.res { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--muted); }
+#grid tr.bad td { background: var(--bad-soft); }
+#grid .verdict { font-weight: 600; white-space: nowrap; }
+.v-ok { color: var(--ok); } .v-bad { color: var(--bad); } .v-err { color: var(--warn); font-weight: 400; font-size: 12px; white-space: normal; }
+.del { border: 0; background: none; color: var(--muted); padding: 4px 8px; }
+.del:hover { color: var(--bad); background: none; }
+
+.help { margin-top: 10px; }
+.help summary { cursor: pointer; color: var(--blue); }
+.legend-table { border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.legend-table td, .legend-table th { border: 1px solid var(--line); padding: 5px 9px; text-align: left; }
+.legend-table th { background: var(--blue-soft); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.stat { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+.stat b { display: block; font-size: 24px; }
+.stat span { color: var(--muted); font-size: 12px; }
+.stat.bad { background: var(--bad-soft); border-color: #f0bcbc; }
+.banner { padding: 10px 14px; border-radius: 8px; font-weight: 600; margin-bottom: 8px; }
+.banner.ok { background: var(--ok-soft); color: var(--ok); }
+.banner.bad { background: var(--bad-soft); color: var(--bad); }
+.banner.empty { background: var(--blue-soft); color: var(--blue); font-weight: 400; }
+
+.chart-block { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; break-inside: avoid; }
+.chart-block h3 { margin: 0 0 4px; font-size: 15px; }
+.chart-block .meta { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.chart-block svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); margin: 4px 0 6px; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 5px; }
+.legend i.dot { width: 9px; height: 9px; border: 0; border-radius: 50%; }
+.signals { margin: 6px 0 0; padding: 8px 12px 8px 30px; background: var(--bad-soft); border-radius: 8px; color: var(--bad); }
+.stable { color: var(--ok); margin: 6px 0 0; }
+.few { color: var(--muted); font-size: 13px; }
+
+footer { max-width: 1120px; margin: 0 auto 30px; padding: 0 20px; color: var(--muted); font-size: 12px; }
+
+@media print {
+  body { background: #fff; font-size: 11px; }
+  .top { background: #fff; color: var(--ink); padding: 0 0 8px; border-bottom: 2px solid var(--ink); }
+  .privacy, .toolbar, .hint, .help, .noprint, .del, #saved, .seg { display: none !important; }
+  main { margin: 10px 0; padding: 0; gap: 10px; }
+  .card { border: 0; padding: 0; }
+  .step { display: none; }
+  input, select { border: 0 !important; padding: 2px; background: none !important; appearance: none; }
+  #grid th { position: static; }
+  input:focus, select:focus { outline: none; }
+  .top { padding-left: 0; padding-right: 0; }
+  #grid { min-width: 0; } .table-wrap { overflow: visible; border: 0; }
+  #grid tr.empty { display: none; }
+  footer { margin: 0; padding: 0; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1 class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M16 5 L20 16 L16 27 L12 16 Z" fill="currentColor" opacity=".35"/><path d="M16 5 L20 16 L12 16 Z" fill="currentColor"/></svg><span class="name">ЛабКомпас<span>.ВЛК</span></span></h1>
+    <p class="sub">Калькулятор ВЛК: оперативный контроль и карты Шухарта по РМГ 76-2014</p>
+  </div>
+  <div class="privacy" title="Расчёты выполняются на вашем компьютере">🔒 Данные не покидают ваш компьютер</div>
+</header>
+
+<main>
+  <section class="card" id="params">
+    <h2><span class="step">1</span> Параметры методики</h2>
+    <div class="grid">
+      <label>Показатель
+        <input data-p="name" placeholder="например, Аммоний-ион">
+      </label>
+      <label>Единицы
+        <input data-p="units" placeholder="мг/дм³">
+      </label>
+      <label>σr, %
+        <input data-p="sigma_r" inputmode="decimal" placeholder="4">
+        <small>показатель повторяемости</small>
+      </label>
+      <label>σRл, %
+        <input data-p="sigma_R" inputmode="decimal" placeholder="6">
+        <small>внутрилаб. прецизионность</small>
+      </label>
+      <div class="delta">
+        <div class="seg">
+          <button type="button" data-delta="method" class="on">Δ из методики</button>
+          <button type="button" data-delta="lab">Δл лаборатории</button>
+        </div>
+        <label id="delta-method">Δ методики, %
+          <input data-p="delta" inputmode="decimal" placeholder="15">
+          <small id="delta-hint">Δл = 0,84·Δ</small>
+        </label>
+        <label id="delta-lab" hidden>Δл лаборатории, %
+          <input data-p="delta_lab" inputmode="decimal" placeholder="12,6">
+          <small>установленный по данным лаборатории</small>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="data">
+    <h2><span class="step">2</span> Результаты контрольных процедур</h2>
+    <div class="toolbar">
+      <button type="button" id="add-row" class="primary">+ Строка</button>
+      <button type="button" id="example">Загрузить пример</button>
+      <label class="btn">Импорт CSV<input type="file" id="import-csv" accept=".csv,.txt,.tsv" hidden></label>
+      <button type="button" id="export-csv">Экспорт CSV</button>
+      <span class="spacer"></span>
+      <label class="btn">Открыть проект<input type="file" id="open-project" accept=".json" hidden></label>
+      <button type="button" id="save-project">Сохранить проект</button>
+      <button type="button" id="clear" class="danger">Очистить</button>
+    </div>
+    <p class="hint">💡 Скопируйте результаты из Excel и вставьте их (Ctrl+V) в любую ячейку таблицы. Порядок столбцов:
+      дата, вид, X₁, X₂, C, X′₁, X′₂. Enter переводит курсор на строку ниже.</p>
+    <div class="table-wrap">
+      <table id="grid">
+        <thead>
+          <tr>
+            <th>№</th><th>Дата</th><th>Вид контроля</th>
+            <th title="Первое параллельное определение">X₁</th>
+            <th title="Второе параллельное определение">X₂</th>
+            <th title="Аттестованное значение ОК или величина добавки">C</th>
+            <th title="Проба с добавкой, первое определение">X′₁</th>
+            <th title="Проба с добавкой, второе определение">X′₂</th>
+            <th>Результат</th><th>Норматив</th><th>Вывод</th><th class="noprint"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <details class="help">
+      <summary>Какие поля заполнять</summary>
+      <table class="legend-table">
+        <tr><th>Вид контроля</th><th>Поля</th><th>Проверка</th></tr>
+        <tr><td>Повторяемость</td><td>X₁, X₂</td><td>|X₁ − X₂| ≤ 2,77·σr</td></tr>
+        <tr><td>Внутрилаб. прецизионность</td><td>X₁, X₂ (результаты в разных условиях)</td><td>|X₁ − X₂| ≤ 2,77·σRл</td></tr>
+        <tr><td>Точность (ОК)</td><td>X₁, X₂ (необязательно), C</td><td>|X̄ − C| ≤ Δл</td></tr>
+        <tr><td>Точность (добавки)</td><td>X₁, X₂ — исходная проба; X′₁, X′₂ — с добавкой; C — добавка</td><td>|X̄′ − X̄ − C| ≤ √(Δл,X̄′² + Δл,X̄²)</td></tr>
+      </table>
+    </details>
+  </section>
+
+  <section class="card" id="results">
+    <h2><span class="step">3</span> Итоги и контрольные карты</h2>
+    <div id="summary"></div>
+    <div id="charts"></div>
+    <div class="toolbar noprint">
+      <button type="button" id="print" class="primary">Печать / сохранить в PDF</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p class="brand-line"><b>ЛабКомпас.ВЛК</b> · <a href="https://labcompass.ru">labcompass.ru</a> — подготовка лабораторий к аккредитации и подтверждению компетентности</p>
+  Расчёт для n = 2 параллельных определений. Коэффициенты: r = 2,77·σ; карта размахов 1,128 / 2,834 / 3,686·σ;
+  карта точности ±0,67·К / ±К. Перед применением сверьте их с действующей редакцией РМГ 76-2014
+  и процедурой ВЛК вашей лаборатории. <span id="saved"></span>
+</footer>
+
+<script>
+/*
+ * Расчёты ВЛК по РМГ 76-2014 (n = 2). Работает в браузере и в Node.js (для тестов).
+ * Логика повторяет vlk_calc/vlk.py.
+ */
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory();
+  else root.VLK = factory();
+})(typeof self !== "undefined" ? self : this, function () {
+  // Коэффициенты РМГ 76-2014. Перед использованием сверить с действующей редакцией.
+  const K = {
+    Q_P2: 2.77,          // r = Q(P, 2)·σr при P = 0,95
+    D2_CL: 1.128,        // средняя линия карты размахов
+    D2_WARN: 2.834,      // предел предупреждения
+    D2_ACTION: 3.686,    // предел действия
+    ACCURACY_WARN: 0.67, // предел предупреждения карты точности, доля от К
+    DELTA_LAB_K: 0.84,   // Δл = 0,84·Δ на этапе внедрения методики
+  };
+
+  const KINDS = {
+    "повт": "Повторяемость",
+    "прец": "Внутрилаб. прецизионность",
+    "ок": "Точность (ОК)",
+    "доб": "Точность (добавки)",
+  };
+  const FIELDS = {
+    "повт": ["x1", "x2"],
+    "прец": ["x1", "x2"],
+    "ок": ["x1", "x2", "c"],
+    "доб": ["x1", "x2", "c", "xd1", "xd2"],
+  };
+  const REQUIRED = {
+    "повт": ["x1", "x2"],
+    "прец": ["x1", "x2"],
+    "ок": ["x1", "c"],
+    "доб": ["x1", "c", "xd1"],
+  };
+  const FIELD_NAMES = { x1: "X₁", x2: "X₂", c: "C", xd1: "X′₁", xd2: "X′₂" };
+
+  function num(s) {
+    if (s === null || s === undefined) return null;
+    s = String(s).trim().replace(/\s/g, "").replace(",", ".");
+    if (!s) return null;
+    const v = Number(s);
+    return Number.isFinite(v) ? v : NaN;
+  }
+
+  function normKind(s) {
+    s = String(s || "").trim().toLowerCase();
+    if (s.startsWith("пов")) return "повт";
+    if (s.startsWith("пре") || s.startsWith("вну")) return "прец";
+    if (s.includes("доб")) return "доб";
+    if (s === "ок" || s.includes("(ок)") || s.startsWith("обр")) return "ок";
+    return "";
+  }
+
+  const mean = (a, b) => (b === null ? a : (a + b) / 2);
+
+  function deltaLab(p) {
+    if (p.useLab) return num(p.delta_lab);
+    const d = num(p.delta);
+    return d === null || Number.isNaN(d) ? d : K.DELTA_LAB_K * d;
+  }
+
+  /** Проверка одной строки. Возвращает null для пустой строки. */
+  function evaluate(row, p) {
+    const kind = normKind(row.kind);
+    const v = {};
+    let blank = true;
+    for (const f of ["x1", "x2", "c", "xd1", "xd2"]) {
+      v[f] = num(row[f]);
+      if (v[f] !== null) blank = false;
+    }
+    if (blank && !kind) return null;
+    if (!kind) return { error: "выберите вид контроля" };
+    for (const f of FIELDS[kind]) {
+      if (Number.isNaN(v[f])) return { kind, error: `${FIELD_NAMES[f]}: не число` };
+    }
+    const missing = REQUIRED[kind].filter((f) => v[f] === null);
+    if (missing.length) return { kind, error: "заполните " + missing.map((f) => FIELD_NAMES[f]).join(", ") };
+
+    const sigma_r = num(p.sigma_r), sigma_R = num(p.sigma_R), dl = deltaLab(p);
+    const xbar = mean(v.x1, v.x2);
+    if (!(xbar > 0)) return { kind, error: "X̄ должно быть больше нуля" };
+    let value, norm, rel;
+
+    if (kind === "повт" || kind === "прец") {
+      const s = kind === "повт" ? sigma_r : sigma_R;
+      if (!(s > 0)) return { kind, error: `укажите ${kind === "повт" ? "σr" : "σRл"} в параметрах` };
+      value = Math.abs(v.x1 - v.x2);
+      norm = K.Q_P2 * s / 100 * xbar;
+      rel = value / xbar * 100;
+    } else {
+      if (!(dl > 0)) return { kind, error: "укажите Δ или Δл в параметрах" };
+      if (!(v.c > 0)) return { kind, error: "C должно быть больше нуля" };
+      if (kind === "ок") {
+        value = Math.abs(xbar - v.c);
+        norm = dl / 100 * v.c;
+        rel = (xbar - v.c) / v.c * 100;
+      } else {
+        const xadd = mean(v.xd1, v.xd2);
+        value = Math.abs(xadd - xbar - v.c);
+        norm = Math.hypot(dl * xadd, dl * xbar) / 100;
+        rel = (xadd - xbar - v.c) / v.c * 100;
+      }
+    }
+    return { kind, xbar, value, norm, rel, ok: value <= norm };
+  }
+
+  /** Средняя линия, предел предупреждения, предел действия (в %). */
+  function chartLimits(kind, p) {
+    if (kind === "повт" || kind === "прец") {
+      const s = num(kind === "повт" ? p.sigma_r : p.sigma_R);
+      return { cl: K.D2_CL * s, warn: K.D2_WARN * s, action: K.D2_ACTION * s, twoSided: false };
+    }
+    const dl = deltaLab(p);
+    return { cl: 0, warn: K.ACCURACY_WARN * dl, action: dl, twoSided: true };
+  }
+
+  /** Признаки нарушения стабильности. Возвращает {номер точки (с 1): [правила]}. */
+  function findSignals(values, { cl, warn, action, twoSided }) {
+    const out = {};
+    const add = (i, rule) => {
+      (out[i + 1] = out[i + 1] || []);
+      if (!out[i + 1].includes(rule)) out[i + 1].push(rule);
+    };
+    const side = (v, limit) => (v > limit ? 1 : twoSided && v < -limit ? -1 : 0);
+
+    values.forEach((v, i) => {
+      if (side(v, action)) add(i, "выход за предел действия");
+      if (i >= 2) {
+        const sides = values.slice(i - 2, i + 1).map((x) => side(x, warn));
+        for (const s of [1, -1]) {
+          if (sides.filter((x) => x === s).length >= 2) {
+            add(i - 2 + sides.lastIndexOf(s), "2 из 3 точек за пределом предупреждения");
+          }
+        }
+      }
+      if (i >= 8) {
+        const w = values.slice(i - 8, i + 1);
+        if (w.every((x) => x > cl) || w.every((x) => x < cl)) add(i, "9 точек подряд по одну сторону средней линии");
+      }
+      if (i >= 5) {
+        const w = values.slice(i - 5, i + 1);
+        const d = w.slice(1).map((x, j) => x - w[j]);
+        if (d.every((x) => x > 0) || d.every((x) => x < 0)) add(i, "6 точек подряд монотонно растут или убывают");
+      }
+    });
+    return out;
+  }
+
+  /** Разбор CSV/TSV из Excel: разделитель «;», «,» или табуляция. */
+  function parseTable(text, delim) {
+    text = text.replace(/^﻿/, "").replace(/\r/g, "");
+    const lines = text.split("\n").filter((l) => l.trim());
+    if (!lines.length) return [];
+    const first = lines[0];
+    delim = delim || (first.includes("\t") ? "\t" : first.includes(";") ? ";" : ",");
+    return lines.map((l) => l.split(delim).map((c) => c.trim().replace(/^"|"$/g, "")));
+  }
+
+  const COLUMNS = ["date", "kind", "x1", "x2", "c", "xd1", "xd2"];
+  const HEADER_ALIASES = { "дата": "date", "вид": "kind", x1: "x1", x2: "x2", c: "c", xd1: "xd1", xd2: "xd2" };
+
+  /** Строки таблицы → объекты. Понимает файлы с заголовком (как у vlk.py) и без него. */
+  function rowsFromTable(cells) {
+    if (!cells.length) return [];
+    const head = cells[0].map((h) => HEADER_ALIASES[h.toLowerCase()]);
+    const hasHeader = head.filter(Boolean).length >= 2;
+    const cols = hasHeader ? head : COLUMNS;
+    return cells.slice(hasHeader ? 1 : 0).map((r) => {
+      const o = { date: "", kind: "", x1: "", x2: "", c: "", xd1: "", xd2: "" };
+      r.forEach((val, i) => { if (cols[i]) o[cols[i]] = val; });
+      o.kind = normKind(o.kind);
+      return o;
+    });
+  }
+
+  function toCSV(rows) {
+    const head = "дата;вид;x1;x2;c;xd1;xd2";
+    const body = rows.map((r) => COLUMNS.map((c) => (r[c] || "").replace(/;/g, ",")).join(";"));
+    return "﻿" + [head, ...body].join("\r\n") + "\r\n";
+  }
+
+  return { K, KINDS, FIELDS, REQUIRED, COLUMNS, num, normKind, deltaLab, evaluate, chartLimits, findSignals, parseTable, rowsFromTable, toCSV };
+});
+</script>
+<script>
+// Пример данных (сгенерировано build.js из vlk_calc/example.csv)
+const EXAMPLE_CSV = "дата;вид;x1;x2;c;xd1;xd2\n01.09.2026;повт;1,119;1,110;;;\n02.09.2026;повт;1,466;1,313;;;\n03.09.2026;повт;1,240;1,226;;;\n04.09.2026;повт;1,468;1,419;;;\n05.09.2026;повт;1,480;1,446;;;\n06.09.2026;повт;0,970;0,948;;;\n07.09.2026;повт;0,922;0,902;;;\n08.09.2026;повт;1,731;1,577;;;\n09.09.2026;повт;1,141;1,126;;;\n10.09.2026;повт;1,148;1,074;;;\n11.09.2026;повт;1,843;1,749;;;\n12.09.2026;повт;1,334;1,313;;;\n13.09.2026;повт;1,678;1,627;;;\n14.09.2026;повт;1,338;1,319;;;\n15.09.2026;повт;1,477;1,473;;;\n16.09.2026;повт;1,047;1,024;;;\n17.09.2026;повт;1,513;1,430;;;\n18.09.2026;повт;1,783;1,580;;;\n19.09.2026;повт;1,425;1,317;;;\n20.09.2026;повт;1,650;1,484;;;\n21.09.2026;повт;1,513;1,495;;;\n22.09.2026;повт;0,979;0,937;;;\n23.09.2026;повт;1,626;1,539;;;\n24.09.2026;повт;1,458;1,405;;;\n25.09.2026;повт;1,214;1,128;;;\n02.09.2026;ок;2,072;2,052;2,00;;\n05.09.2026;ок;1,962;1,942;2,00;;\n08.09.2026;ок;2,120;2,100;2,00;;\n11.09.2026;ок;2,030;2,010;2,00;;\n14.09.2026;ок;1,890;1,870;2,00;;\n17.09.2026;ок;2,094;2,074;2,00;;\n20.09.2026;ок;2,280;2,260;2,00;;\n23.09.2026;ок;2,050;2,030;2,00;;\n05.09.2026;доб;1,32;1,25;2,00;3,22;3,18\n12.09.2026;доб;1,10;1,14;1,00;2,18;2,10\n19.09.2026;доб;1,45;1,41;2,00;3,61;3,55\n03.09.2026;прец;1,28;1,35;;;\n10.09.2026;прец;1,52;1,44;;;\n17.09.2026;прец;1,10;1,13;;;\n24.09.2026;прец;1,61;1,49;;;\n";
+</script>
+<script>
+/* Интерфейс калькулятора ВЛК. Расчёты — в vlk-core.js (глобальный объект VLK). */
+(function () {
+  const STORE = "vlk-web-v1";
+  const FIELDS = ["x1", "x2", "c", "xd1", "xd2"];
+  const $ = (s) => document.querySelector(s);
+  const tbody = $("#grid tbody");
+
+  const emptyRow = () => ({ date: "", kind: "", x1: "", x2: "", c: "", xd1: "", xd2: "" });
+  const defaults = () => ({
+    params: { name: "", units: "мг/дм³", sigma_r: "", sigma_R: "", delta: "", delta_lab: "", useLab: false },
+    rows: Array.from({ length: 5 }, emptyRow),
+  });
+
+  let state = load() || defaults();
+
+  // ---------- форматирование ----------
+  const fmt = (x) => Number(x.toPrecision(3)).toLocaleString("ru-RU", { maximumFractionDigits: 6 });
+  const pct = (x) => x.toFixed(1).replace(".", ",");
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  // ---------- хранение ----------
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE)); } catch { return null; }
+  }
+  let saveTimer;
+  function save() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORE, JSON.stringify(state));
+        $("#saved").textContent = "Данные сохранены в этом браузере.";
+      } catch { $("#saved").textContent = "Не удалось сохранить данные в браузере."; }
+    }, 300);
+  }
+
+  function download(name, text, type) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  const fileBase = () => (state.params.name.trim() || "ВЛК").replace(/[\\/:*?"<>|]/g, "_");
+
+  // ---------- параметры ----------
+  function renderParams() {
+    document.querySelectorAll("[data-p]").forEach((el) => (el.value = state.params[el.dataset.p] ?? ""));
+    const lab = !!state.params.useLab;
+    document.querySelectorAll("[data-delta]").forEach((b) => b.classList.toggle("on", (b.dataset.delta === "lab") === lab));
+    $("#delta-method").hidden = lab;
+    $("#delta-lab").hidden = !lab;
+    updateDeltaHint();
+  }
+  function updateDeltaHint() {
+    const d = VLK.num(state.params.delta);
+    $("#delta-hint").textContent = d > 0 ? `Δл = 0,84·Δ = ${pct(VLK.K.DELTA_LAB_K * d)} %` : "Δл = 0,84·Δ";
+    document.querySelectorAll("[data-p]").forEach((el) => {
+      const numeric = !["name", "units"].includes(el.dataset.p);
+      el.classList.toggle("invalid", numeric && Number.isNaN(VLK.num(el.value)));
+    });
+  }
+
+  $("#params").addEventListener("input", (e) => {
+    const k = e.target.dataset.p;
+    if (!k) return;
+    state.params[k] = e.target.value;
+    updateDeltaHint();
+    recalc();
+  });
+  document.querySelectorAll("[data-delta]").forEach((b) =>
+    b.addEventListener("click", () => {
+      state.params.useLab = b.dataset.delta === "lab";
+      renderParams();
+      recalc();
+    })
+  );
+
+  // ---------- таблица ----------
+  const kindOptions = '<option value="">— выберите —</option>' +
+    Object.entries(VLK.KINDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
+
+  function renderTable() {
+    tbody.innerHTML = state.rows.map((r, i) => `
+      <tr data-i="${i}">
+        <td class="n">${i + 1}</td>
+        <td><input data-f="date" value="${esc(r.date)}" placeholder="дд.мм.гггг"></td>
+        <td><select data-f="kind">${kindOptions}</select></td>
+        ${FIELDS.map((f) => `<td><input data-f="${f}" inputmode="decimal" value="${esc(r[f])}"></td>`).join("")}
+        <td class="res value"></td><td class="res norm"></td><td class="verdict"></td>
+        <td class="noprint"><button type="button" class="del" title="Удалить строку" aria-label="Удалить строку">✕</button></td>
+      </tr>`).join("");
+    tbody.querySelectorAll("tr").forEach((tr, i) => {
+      tr.querySelector("select").value = state.rows[i].kind;
+      updateRowFields(tr, state.rows[i]);
+    });
+    recalc();
+  }
+
+  function updateRowFields(tr, row) {
+    const allowed = row.kind ? VLK.FIELDS[row.kind] : FIELDS;
+    FIELDS.forEach((f) => {
+      const el = tr.querySelector(`[data-f="${f}"]`);
+      el.disabled = !allowed.includes(f);
+      el.placeholder = el.disabled ? "—" : "";
+    });
+  }
+
+  tbody.addEventListener("input", (e) => {
+    const f = e.target.dataset.f;
+    if (!f) return;
+    const tr = e.target.closest("tr");
+    const row = state.rows[tr.dataset.i];
+    row[f] = e.target.value;
+    if (f === "kind") updateRowFields(tr, row);
+    recalc();
+  });
+
+  tbody.addEventListener("click", (e) => {
+    if (!e.target.classList.contains("del")) return;
+    state.rows.splice(e.target.closest("tr").dataset.i, 1);
+    if (!state.rows.length) state.rows.push(emptyRow());
+    renderTable();
+  });
+
+  // Enter — на строку ниже (как в Excel), с добавлением строки в конце таблицы
+  tbody.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || !e.target.dataset.f) return;
+    e.preventDefault();
+    const i = +e.target.closest("tr").dataset.i;
+    const f = e.target.dataset.f;
+    if (i === state.rows.length - 1) {
+      state.rows.push(emptyRow());
+      renderTable();
+    }
+    focusCell(i + 1, f);
+  });
+
+  function focusCell(i, f) {
+    const el = tbody.querySelector(`tr[data-i="${i}"] [data-f="${f}"]`);
+    if (el) el.focus();
+  }
+
+  // Вставка блока из Excel начиная с ячейки под курсором
+  tbody.addEventListener("paste", (e) => {
+    const f = e.target.dataset.f;
+    const text = (e.clipboardData || window.clipboardData).getData("text");
+    if (!f || !/[\t\n]/.test(text.trim())) return; // одиночное значение — обычная вставка
+    e.preventDefault();
+    let cells = VLK.parseTable(text, "\t");
+    if (cells.length && /дата|вид/i.test(cells[0].join(" "))) cells = cells.slice(1);
+    const startRow = +e.target.closest("tr").dataset.i;
+    const startCol = VLK.COLUMNS.indexOf(f);
+    cells.forEach((line, j) => {
+      const i = startRow + j;
+      while (state.rows.length <= i) state.rows.push(emptyRow());
+      line.forEach((val, k) => {
+        const col = VLK.COLUMNS[startCol + k];
+        if (col) state.rows[i][col] = col === "kind" ? VLK.normKind(val) : val;
+      });
+    });
+    renderTable();
+    focusCell(startRow, f);
+  });
+
+  // ---------- расчёт и вывод ----------
+  function recalc() {
+    const results = state.rows.map((r) => VLK.evaluate(r, state.params));
+    tbody.querySelectorAll("tr").forEach((tr, i) => {
+      const r = results[i];
+      const [value, norm, verdict] = [".value", ".norm", ".verdict"].map((s) => tr.querySelector(s));
+      tr.classList.toggle("bad", !!(r && !r.error && !r.ok));
+      tr.classList.toggle("empty", !r);
+      if (!r) { value.textContent = norm.textContent = verdict.textContent = ""; return; }
+      if (r.error) {
+        value.textContent = norm.textContent = "";
+        verdict.innerHTML = `<span class="v-err">${esc(r.error)}</span>`;
+        return;
+      }
+      value.textContent = fmt(r.value);
+      norm.textContent = "≤ " + fmt(r.norm);
+      verdict.innerHTML = r.ok ? '<span class="v-ok">✓ удовл.</span>' : '<span class="v-bad">✗ не удовл.</span>';
+    });
+    renderResults(results);
+    save();
+  }
+
+  function renderResults(results) {
+    const valid = results.map((r, i) => ({ ...r, row: i + 1, date: state.rows[i].date })).filter((r) => r.kind && !r.error && r.value !== undefined);
+    const errors = results.filter((r) => r && r.error).length;
+    const failed = valid.filter((r) => !r.ok);
+    let signalCount = 0;
+
+    const blocks = Object.keys(VLK.KINDS).map((kind) => {
+      const items = valid.filter((r) => r.kind === kind);
+      if (!items.length) return "";
+      const lim = VLK.chartLimits(kind, state.params);
+      const bad = items.filter((r) => !r.ok).length;
+      let body;
+      if (items.length < 3) {
+        body = `<p class="few">Для контрольной карты нужно не менее 3 точек (сейчас ${items.length}).</p>`;
+      } else {
+        const sig = VLK.findSignals(items.map((r) => r.rel), lim);
+        signalCount += Object.keys(sig).length;
+        body = chartSVG(items, lim, sig) + legend(lim, bad > 0) + signalList(items, sig);
+      }
+      return `<div class="chart-block">
+        <h3>${VLK.KINDS[kind]}</h3>
+        <div class="meta">Процедур: ${items.length} · неудовлетворительных: ${bad} ·
+          средняя линия ${pct(lim.cl)} %, ПП ${lim.twoSided ? "±" : ""}${pct(lim.warn)} %, ПД ${lim.twoSided ? "±" : ""}${pct(lim.action)} %</div>
+        ${body}</div>`;
+    }).join("");
+
+    let banner;
+    if (!valid.length) {
+      banner = `<div class="banner empty">Заполните параметры методики и результаты контроля — итоги и контрольные карты появятся здесь.
+        Чтобы посмотреть, как это выглядит, нажмите «Загрузить пример».</div>`;
+    } else if (!failed.length && !signalCount) {
+      banner = '<div class="banner ok">✓ Все контрольные процедуры удовлетворительны, признаков нарушения стабильности нет.</div>';
+    } else {
+      banner = '<div class="banner bad">✗ Есть неудовлетворительные результаты или сигналы на контрольных картах. Требуется анализ причин и корректирующие действия.</div>';
+    }
+
+    const stats = valid.length ? `<div class="stats">
+      <div class="stat"><b>${valid.length}</b><span>контрольных процедур</span></div>
+      <div class="stat ${failed.length ? "bad" : ""}"><b>${failed.length}</b><span>не удовлетворяют нормативу</span></div>
+      <div class="stat ${signalCount ? "bad" : ""}"><b>${signalCount}</b><span>сигналов на картах</span></div>
+      ${errors ? `<div class="stat"><b>${errors}</b><span>строк с ошибками ввода</span></div>` : ""}
+    </div>` : "";
+
+    const p = state.params;
+    const head = valid.length ? `<p class="meta">${esc(p.name || "Показатель не указан")}${p.units ? ", " + esc(p.units) : ""} ·
+      σr = ${esc(p.sigma_r || "—")} %, σRл = ${esc(p.sigma_R || "—")} %, Δл = ${VLK.deltaLab(p) > 0 ? pct(VLK.deltaLab(p)) : "—"} % ·
+      отчёт от ${new Date().toLocaleDateString("ru-RU")}</p>` : "";
+
+    $("#summary").innerHTML = head + banner + stats;
+    $("#charts").innerHTML = blocks;
+  }
+
+  function signalList(items, sig) {
+    const keys = Object.keys(sig);
+    if (!keys.length) return '<p class="stable">✓ Признаков нарушения стабильности не выявлено.</p>';
+    return '<ul class="signals">' + keys.map((k) => {
+      const r = items[k - 1];
+      return `<li>Точка ${k} (строка ${r.row}${r.date ? ", " + esc(r.date) : ""}): ${sig[k].join("; ")}</li>`;
+    }).join("") + "</ul>";
+  }
+
+  function legend(lim, hasBad) {
+    return `<div class="legend">
+      <span><i style="border-color:#555"></i>Средняя линия</span>
+      <span><i style="border-color:#d08a1a;border-top-style:dashed"></i>Предел предупреждения</span>
+      <span><i style="border-color:#b03030"></i>Предел действия</span>
+      ${hasBad ? '<span><i class="dot" style="background:#b03030"></i>Норматив не выполнен</span>' : ""}
+      <span>◯ сигнал нарушения стабильности</span></div>`;
+  }
+
+  function niceStep(range) {
+    const raw = range / 5, p = 10 ** Math.floor(Math.log10(raw)), m = raw / p;
+    return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+  }
+
+  function chartSVG(items, lim, sig) {
+    const W = 760, H = 270, m = { l: 46, r: 14, t: 12, b: 36 };
+    const ys = items.map((r) => r.rel);
+    const top = Math.max(lim.action, ...ys.map(Math.abs)) * 1.12;
+    const bottom = lim.twoSided ? -top : 0;
+    const n = items.length;
+    const sx = (i) => m.l + (i + 0.5) * (W - m.l - m.r) / n;
+    const sy = (v) => m.t + (top - v) / (top - bottom) * (H - m.t - m.b);
+    const out = [];
+
+    const step = niceStep(top - bottom);
+    for (let v = Math.ceil(bottom / step) * step; v <= top + 1e-9; v += step) {
+      out.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(v)}" y2="${sy(v)}" stroke="#ececec"/>`,
+        `<text x="${m.l - 6}" y="${sy(v) + 4}" text-anchor="end">${fmt(Math.round(v * 100) / 100)}</text>`);
+    }
+    const hline = (v, color, dash, w = 1.2) =>
+      out.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(v)}" y2="${sy(v)}" stroke="${color}" stroke-width="${w}" ${dash ? 'stroke-dasharray="6 4"' : ""}/>`);
+    hline(lim.cl, "#555", false, 1);
+    for (const s of lim.twoSided ? [1, -1] : [1]) {
+      hline(s * lim.warn, "#d08a1a", true);
+      hline(s * lim.action, "#b03030", false, 1.4);
+    }
+
+    out.push(`<polyline fill="none" stroke="#2f5d8a" stroke-width="1.6" points="${ys.map((y, i) => `${sx(i)},${sy(y)}`).join(" ")}"/>`);
+    items.forEach((r, i) => {
+      const tip = `Точка ${i + 1}, строка ${r.row}${r.date ? " (" + esc(r.date) + ")" : ""}: ${pct(r.rel)} %${r.ok ? "" : " — норматив не выполнен"}`;
+      if (sig[i + 1]) out.push(`<circle cx="${sx(i)}" cy="${sy(r.rel)}" r="9" fill="none" stroke="#b03030" stroke-width="1.8"/>`);
+      out.push(`<circle cx="${sx(i)}" cy="${sy(r.rel)}" r="${r.ok ? 3.5 : 5}" fill="${r.ok ? "#2f5d8a" : "#b03030"}"><title>${tip}</title></circle>`);
+    });
+
+    const every = Math.ceil(n / 15);
+    items.forEach((_, i) => {
+      if (i % every === 0 || i === n - 1) out.push(`<text x="${sx(i)}" y="${H - m.b + 16}" text-anchor="middle">${i + 1}</text>`);
+    });
+    out.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="#999"/>`,
+      `<text x="${(m.l + W - m.r) / 2}" y="${H - 4}" text-anchor="middle" fill="#66727f">Номер точки на карте</text>`,
+      `<text transform="translate(12 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle" fill="#66727f">${lim.twoSided ? "отклонение, % от C" : "% от X̄"}</text>`);
+
+    return `<svg viewBox="0 0 ${W} ${H}" font-size="11" font-family="system-ui, Arial, sans-serif" role="img" aria-label="Контрольная карта">${out.join("")}</svg>`;
+  }
+
+  // ---------- кнопки ----------
+  $("#add-row").addEventListener("click", () => {
+    state.rows.push(emptyRow());
+    renderTable();
+    focusCell(state.rows.length - 1, "date");
+  });
+
+  $("#clear").addEventListener("click", () => {
+    if (!confirm("Удалить все строки и параметры? Отменить это действие будет нельзя.")) return;
+    state = defaults();
+    renderParams();
+    renderTable();
+  });
+
+  $("#example").addEventListener("click", () => {
+    const hasData = state.rows.some((r) => Object.values(r).some((v) => String(v).trim()));
+    if (hasData && !confirm("Заменить текущие данные примером?")) return;
+    state = {
+      params: { name: "Аммоний-ион (пример)", units: "мг/дм³", sigma_r: "4", sigma_R: "6", delta: "15", delta_lab: "", useLab: false },
+      rows: VLK.rowsFromTable(VLK.parseTable(EXAMPLE_CSV)),
+    };
+    renderParams();
+    renderTable();
+  });
+
+  function readFile(input, cb) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { try { cb(reader.result); } catch (err) { alert("Не удалось прочитать файл: " + err.message); } input.value = ""; };
+    reader.readAsText(file, "utf-8");
+  }
+
+  $("#import-csv").addEventListener("change", (e) => readFile(e.target, (text) => {
+    const rows = VLK.rowsFromTable(VLK.parseTable(text));
+    if (!rows.length) throw new Error("в файле нет строк с данными");
+    const hasData = state.rows.some((r) => Object.values(r).some((v) => String(v).trim()));
+    const append = hasData && confirm(`Найдено строк: ${rows.length}.\nОК — добавить к текущим данным, Отмена — заменить ими текущие.`);
+    state.rows = append ? state.rows.filter((r) => Object.values(r).some((v) => String(v).trim())).concat(rows) : rows;
+    renderTable();
+  }));
+
+  $("#export-csv").addEventListener("click", () =>
+    download(fileBase() + ".csv", VLK.toCSV(state.rows.filter((r) => Object.values(r).some((v) => String(v).trim()))), "text/csv;charset=utf-8"));
+
+  $("#save-project").addEventListener("click", () =>
+    download(fileBase() + ".vlk.json", JSON.stringify({ app: "vlk-web", version: 1, ...state }, null, 1), "application/json"));
+
+  $("#open-project").addEventListener("change", (e) => readFile(e.target, (text) => {
+    const data = JSON.parse(text);
+    if (!data.params || !Array.isArray(data.rows)) throw new Error("это не файл проекта ВЛК");
+    state = { params: { ...defaults().params, ...data.params }, rows: data.rows.map((r) => ({ ...emptyRow(), ...r })) };
+    renderParams();
+    renderTable();
+  }));
+
+  $("#print").addEventListener("click", () => window.print());
+
+  // ---------- старт ----------
+  renderParams();
+  renderTable();
+})();
+</script>
+</body>
+</html>

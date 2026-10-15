@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ЛабКомпас.ВЛК — калькулятор внутрилабораторного контроля</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1 class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M16 5 L20 16 L16 27 L12 16 Z" fill="currentColor" opacity=".35"/><path d="M16 5 L20 16 L12 16 Z" fill="currentColor"/></svg><span class="name">ЛабКомпас<span>.ВЛК</span></span></h1>
+    <p class="sub">Калькулятор ВЛК: оперативный контроль и карты Шухарта по РМГ 76-2014</p>
+  </div>
+  <div class="privacy" title="Расчёты выполняются на вашем компьютере">🔒 Данные не покидают ваш компьютер</div>
+</header>
+
+<main>
+  <section class="card" id="params">
+    <h2><span class="step">1</span> Параметры методики</h2>
+    <div class="grid">
+      <label>Показатель
+        <input data-p="name" placeholder="например, Аммоний-ион">
+      </label>
+      <label>Единицы
+        <input data-p="units" placeholder="мг/дм³">
+      </label>
+      <label>σr, %
+        <input data-p="sigma_r" inputmode="decimal" placeholder="4">
+        <small>показатель повторяемости</small>
+      </label>
+      <label>σRл, %
+        <input data-p="sigma_R" inputmode="decimal" placeholder="6">
+        <small>внутрилаб. прецизионность</small>
+      </label>
+      <div class="delta">
+        <div class="seg">
+          <button type="button" data-delta="method" class="on">Δ из методики</button>
+          <button type="button" data-delta="lab">Δл лаборатории</button>
+        </div>
+        <label id="delta-method">Δ методики, %
+          <input data-p="delta" inputmode="decimal" placeholder="15">
+          <small id="delta-hint">Δл = 0,84·Δ</small>
+        </label>
+        <label id="delta-lab" hidden>Δл лаборатории, %
+          <input data-p="delta_lab" inputmode="decimal" placeholder="12,6">
+          <small>установленный по данным лаборатории</small>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="data">
+    <h2><span class="step">2</span> Результаты контрольных процедур</h2>
+    <div class="toolbar">
+      <button type="button" id="add-row" class="primary">+ Строка</button>
+      <button type="button" id="example">Загрузить пример</button>
+      <label class="btn">Импорт CSV<input type="file" id="import-csv" accept=".csv,.txt,.tsv" hidden></label>
+      <button type="button" id="export-csv">Экспорт CSV</button>
+      <span class="spacer"></span>
+      <label class="btn">Открыть проект<input type="file" id="open-project" accept=".json" hidden></label>
+      <button type="button" id="save-project">Сохранить проект</button>
+      <button type="button" id="clear" class="danger">Очистить</button>
+    </div>
+    <p class="hint">💡 Скопируйте результаты из Excel и вставьте их (Ctrl+V) в любую ячейку таблицы. Порядок столбцов:
+      дата, вид, X₁, X₂, C, X′₁, X′₂. Enter переводит курсор на строку ниже.</p>
+    <div class="table-wrap">
+      <table id="grid">
+        <thead>
+          <tr>
+            <th>№</th><th>Дата</th><th>Вид контроля</th>
+            <th title="Первое параллельное определение">X₁</th>
+            <th title="Второе параллельное определение">X₂</th>
+            <th title="Аттестованное значение ОК или величина добавки">C</th>
+            <th title="Проба с добавкой, первое определение">X′₁</th>
+            <th title="Проба с добавкой, второе определение">X′₂</th>
+            <th>Результат</th><th>Норматив</th><th>Вывод</th><th class="noprint"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <details class="help">
+      <summary>Какие поля заполнять</summary>
+      <table class="legend-table">
+        <tr><th>Вид контроля</th><th>Поля</th><th>Проверка</th></tr>
+        <tr><td>Повторяемость</td><td>X₁, X₂</td><td>|X₁ − X₂| ≤ 2,77·σr</td></tr>
+        <tr><td>Внутрилаб. прецизионность</td><td>X₁, X₂ (результаты в разных условиях)</td><td>|X₁ − X₂| ≤ 2,77·σRл</td></tr>
+        <tr><td>Точность (ОК)</td><td>X₁, X₂ (необязательно), C</td><td>|X̄ − C| ≤ Δл</td></tr>
+        <tr><td>Точность (добавки)</td><td>X₁, X₂ — исходная проба; X′₁, X′₂ — с добавкой; C — добавка</td><td>|X̄′ − X̄ − C| ≤ √(Δл,X̄′² + Δл,X̄²)</td></tr>
+      </table>
+    </details>
+  </section>
+
+  <section class="card" id="results">
+    <h2><span class="step">3</span> Итоги и контрольные карты</h2>
+    <div id="summary"></div>
+    <div id="charts"></div>
+    <div class="toolbar noprint">
+      <button type="button" id="print" class="primary">Печать / сохранить в PDF</button>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p class="brand-line"><b>ЛабКомпас.ВЛК</b> · <a href="https://labcompass.ru">labcompass.ru</a> — подготовка лабораторий к аккредитации и подтверждению компетентности</p>
+  Расчёт для n = 2 параллельных определений. Коэффициенты: r = 2,77·σ; карта размахов 1,128 / 2,834 / 3,686·σ;
+  карта точности ±0,67·К / ±К. Перед применением сверьте их с действующей редакцией РМГ 76-2014
+  и процедурой ВЛК вашей лаборатории. <span id="saved"></span>
+</footer>
+
+<script src="vlk-core.js"></script>
+<script src="example.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
