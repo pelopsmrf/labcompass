@@ -1,4 +1,0 @@
-# Для Cloudflare Pages и Netlify: временные копии сайта не индексировать.
-# Основной сайт labcompass.ru (Caddy) этот файл не читает.
-/*
-  X-Robots-Tag: noindex
