@@ -1,9 +1,0 @@
-// Cloudflare Workers: раздаём готовый сайт как статические файлы (без кода на сервере).
-// Показывается только папка labcompass_site/dist; файл _headers в ней тоже учитывается.
-{
-  "name": "labcompass",
-  "compatibility_date": "2026-10-01",
-  "assets": {
-    "directory": "./labcompass_site/dist"
-  }
-}
