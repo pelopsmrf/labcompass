@@ -22,11 +22,15 @@ require("child_process").execFileSync("node", [path.join(vlk, "build.js")], { st
 fs.mkdirSync(path.join(dist, "vlk"), { recursive: true });
 fs.copyFileSync(path.join(vlk, "dist", "labcompass-vlk.html"), path.join(dist, "vlk", "index.html"));
 
+// Статьи из articles/*.md
+const cssV = "/style.css?v=" + require("crypto").createHash("md5").update(fs.readFileSync(here("src", "style.css"))).digest("hex").slice(0, 8);
+const articleUrls = require("./articles.js")(here("articles"), path.join(dist, "articles"), cssV);
+
 fs.writeFileSync(path.join(dist, "robots.txt"), "User-agent: *\nAllow: /\nSitemap: https://labcompass.ru/sitemap.xml\n");
 const today = new Date().toISOString().slice(0, 10);
 fs.writeFileSync(path.join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-  ["https://labcompass.ru/", "https://labcompass.ru/check/", "https://labcompass.ru/vlk/"].map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join("\n") +
+  ["/", "/check/", "/vlk/", ...articleUrls].map((u) => "https://labcompass.ru" + u).map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join("\n") +
   `\n</urlset>\n`);
 
 // Яндекс Метрика (номер счётчика в config.json → metrika). Вебвизор выключен: данные лабораторий не записываем.
@@ -45,7 +49,8 @@ if (metrika && !/^\d+$/.test(metrika)) throw new Error("metrika в config.json �
 const allHtml = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
   e.isDirectory() ? allHtml(path.join(dir, e.name)) : e.name.endsWith(".html") ? [path.join(dir, e.name)] : []);
 for (const f of allHtml(dist)) {
-  let h = fs.readFileSync(f, "utf8");
+  // Версия в адресе style.css: после обновления браузер не возьмёт старое оформление из кэша
+  let h = fs.readFileSync(f, "utf8").replace(/href="(?:\.\.\/|\/)?style\.css"/g, `href="${cssV}"`);
   if (counter) h = h.replace("</body>", counter + "</body>");
   if (verify && f === path.join(dist, "index.html"))
     h = h.replace("</head>", `<meta name="yandex-verification" content="${verify.replace(/[^\w-]/g, "")}">\n</head>`);

@@ -93,6 +93,23 @@ details p { color: var(--muted); margin: 10px 0 0; }
 .cf-msg { font-weight: 600; margin: 12px 0 0; min-height: 1em; }
 .hp { position: absolute; left: -9999px; }
 
+.article { padding: 40px 0 64px; }
+.article h1 { font-size: clamp(26px, 3.6vw, 38px); }
+.article h2 { font-size: 24px; margin: 36px 0 12px; }
+.article p, .article li { font-size: 17px; }
+.article li { margin: 6px 0; }
+.article .lead { margin-bottom: 26px; }
+.crumbs { color: var(--muted); font-size: 14px; margin: 0; }
+.article .tbl { overflow-x: auto; margin: 16px 0; }
+.article table { border-collapse: collapse; width: 100%; font-size: 16px; }
+.article th, .article td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+.article th { background: var(--blue-soft); }
+.art-cta { background: var(--blue-soft); border-radius: 12px; padding: 18px 22px; margin: 36px 0 0; font-size: 17px; }
+.art-item { display: block; border: 1px solid var(--line); border-radius: 12px; padding: 18px 22px; margin: 12px 0; text-decoration: none; color: var(--ink); }
+.art-item:hover { border-color: var(--blue); }
+.art-item b { display: block; font-size: 19px; color: var(--blue); margin-bottom: 6px; }
+.art-item span { color: var(--muted); }
+
 footer { padding: 26px 0; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
 .foot-in { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 

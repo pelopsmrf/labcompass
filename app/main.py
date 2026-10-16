@@ -26,6 +26,8 @@ app.mount(P + "/static", StaticFiles(directory=Path(__file__).parent / "static")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.globals.update(P=P, eq=eq, ru=eq.ru, FREE_LIMIT=db.FREE_LIMIT,
                              OPERATOR=os.environ.get("OPERATOR") or "владелец сайта labcompass.ru")
+# Версия оформления в адресе: после обновления браузер не возьмёт старый app.css из кэша
+templates.env.globals["CSS_V"] = hashlib.md5((Path(__file__).parent / "static" / "app.css").read_bytes()).hexdigest()[:8]
 db.init()
 
 
