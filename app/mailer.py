@@ -10,13 +10,15 @@ log = logging.getLogger("labcompass.mail")
 sent = []  # последние письма; нужно тестам и для проверки без SMTP
 
 
-def send(to, subject, text):
+def send(to, subject, text, reply_to=None):
     host = os.environ.get("SMTP_HOST", "")
     msg = EmailMessage()
     name, addr = parseaddr(os.environ.get("MAIL_FROM", "ЛабКомпас <info@labcompass.ru>"))
     msg["From"] = formataddr((name, addr))
     msg["To"] = to
     msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg.set_content(text)
     sent.append(msg)
     del sent[:-20]

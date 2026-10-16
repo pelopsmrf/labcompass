@@ -96,6 +96,40 @@ class TestApp(unittest.TestCase):
         r = self.c.post("/app/equipment/new", data={"name": "Четвёртое"})
         self.assertIn("Четвёртое", r.text)
 
+    def test_leads(self):
+        r = self.c.post("/app/lead", json={"source": "check", "email": "bad", "consent": True})
+        self.assertEqual(r.status_code, 400)
+        r = self.c.post("/app/lead", json={"source": "check", "email": "x@lab.ru", "org": "ИЛ"})
+        self.assertIn("согласие", r.json()["error"])
+        mailer.sent.clear()
+        data = {"source": "check", "email": "Lead@Lab.ru", "org": "ИЛ Вода", "consent": True, "score": 62,
+                "sections": [["Персонал", 80]], "gaps": [{"text": "Внутренние аудиты", "a": "no", "key": True}]}
+        r = self.c.post("/app/lead", json=data)
+        self.assertEqual(r.json(), {"ok": True})
+        to_owner, to_lead = mailer.sent[-2], mailer.sent[-1]
+        self.assertEqual(to_owner["Reply-To"], "lead@lab.ru")
+        self.assertIn("Внутренние аудиты — нет [ключевой]", to_owner.get_content())
+        self.assertEqual(to_lead["To"], "lead@lab.ru")
+        self.assertIn("62%", to_lead["Subject"])
+        for _ in range(2):
+            self.c.post("/app/lead", json=data)
+        self.assertEqual(self.c.post("/app/lead", json=data).status_code, 400)  # не больше 3 в сутки
+        r = self.c.post("/app/lead", json={"source": "contact", "email": "c@lab.ru", "consent": True, "message": "коротко"})
+        self.assertEqual(r.status_code, 400)
+        r = self.c.post("/app/lead", json={"source": "contact", "email": "c@lab.ru", "consent": True,
+                                           "message": "Нужна помощь с ПК в марте"})
+        self.assertEqual(r.status_code, 200)
+        n = len(mailer.sent)
+        self.c.post("/app/lead", json={"source": "contact", "email": "bot@x.ru", "consent": True,
+                                       "message": "spam spam spam", "website": "http://x"})
+        self.assertEqual(len(mailer.sent), n)  # робот: тихо игнорируем
+        admin = TestClient(main.app, base_url="http://testserver")
+        login(admin, "boss@lab.ru")
+        page = admin.get("/app/admin/leads").text
+        self.assertIn("lead@lab.ru", page)
+        self.assertIn("Нужна помощь", page)
+        self.assertNotIn("bot@x.ru", page)
+
     def test_foreign_origin(self):
         r = self.c.post("/app/login", data={"email": "x@lab.ru", "consent": "1"},
                         headers={"origin": "https://evil.example"})

@@ -1,6 +1,6 @@
 {% extends "base.html" %}{% block title %}Админка{% endblock %}
 {% block main %}
-<h1>Админка: лаборатории</h1>
+<div class="row space"><h1>Админка: лаборатории</h1><a href="{{ P }}/admin/leads">Заявки с сайта →</a></div>
 <p class="muted">Всего: {{ users|length }}. Подписка включается датой «оплачено до»; пустая дата — бесплатный тариф.</p>
 <div class="tbl"><table>
   <tr><th>Почта</th><th>Организация</th><th>Оборудование</th><th>Зарегистрирован</th><th>Последний вход</th><th>Оплачено до</th></tr>

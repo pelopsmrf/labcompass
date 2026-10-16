@@ -22,6 +22,7 @@ BASE_URL = os.environ.get("BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 DB_PATH = os.environ.get("DB_PATH", str(HERE / "app.db"))
 ADMIN_EMAILS = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
 FREE_LIMIT = int(os.environ.get("FREE_LIMIT", "10"))
+LEADS_TO = os.environ.get("LEADS_TO") or "info@labcompass.ru"  # куда присылать заявки
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "1") == "1"
 
 SCHEMA = """
@@ -67,6 +68,18 @@ CREATE TABLE IF NOT EXISTS equipment (
     updated TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS equipment_user ON equipment(user_id, archived);
+CREATE TABLE IF NOT EXISTS leads (
+    id INTEGER PRIMARY KEY,
+    created TEXT NOT NULL DEFAULT (datetime('now')),
+    source TEXT NOT NULL,            -- check (самопроверка), contact (форма на главной)
+    email TEXT NOT NULL,
+    org TEXT NOT NULL DEFAULT '',
+    message TEXT NOT NULL DEFAULT '',
+    score INTEGER,                   -- процент готовности (для самопроверки)
+    details TEXT NOT NULL DEFAULT '', -- текст разбора, как в письме
+    ip_hash TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'новая'
+);
 """
 
 

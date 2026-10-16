@@ -1,5 +1,6 @@
 """ЛабКомпас: личный кабинет (labcompass.ru/app/). Запуск: uvicorn main:app --port 8000"""
 import hashlib
+import logging
 import os
 import secrets
 from datetime import date, datetime, timedelta
@@ -7,12 +8,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import db
 import equipment as eq
+import leads
 import mailer
 
 P = "/app"  # приложение живёт по адресу labcompass.ru/app/
@@ -367,3 +369,54 @@ def admin_set_paid(request: Request, uid: int, paid_until: str = Form("")):
     with db.db() as con:
         con.execute("UPDATE users SET paid_until = ? WHERE id = ?", (d.isoformat() if d else None, uid))
     return RedirectResponse(P + "/admin", 303)
+
+
+# ---------- Заявки с сайта ----------
+
+@app.post(P + "/lead")
+async def lead(request: Request):
+    """Приём заявки из самопроверки и формы на главной (JSON)."""
+    try:
+        data = await request.json()
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        return JSONResponse({"error": "Неверный запрос"}, 400)
+    try:
+        error = leads.save(data, request.client.host if request.client else "")
+    except Exception:  # заявка уже сохранена, а почта не ушла — пользователю всё равно отвечаем «принято»
+        logging.exception("Ошибка отправки письма по заявке")
+        error = None
+    if error:
+        return JSONResponse({"error": error}, 400)
+    return {"ok": True}
+
+
+def need_admin(request):
+    user = need_user(request)
+    return user if user["is_admin"] else None
+
+
+@app.get(P + "/admin/leads", response_class=HTMLResponse)
+def admin_leads(request: Request):
+    user = need_admin(request)
+    if not user:
+        return page(request, "message.html", need_user(request), text="Нет доступа", status_code=403)
+    with db.db() as con:
+        rows = con.execute("SELECT * FROM leads ORDER BY id DESC LIMIT 500").fetchall()
+    return page(request, "leads.html", user, leads=rows, sources=leads.SOURCES)
+
+
+@app.post(P + "/admin/leads/{lead_id}")
+def admin_lead_status(request: Request, lead_id: int, status: str = Form("")):
+    user = need_admin(request)
+    if not user:
+        return page(request, "message.html", need_user(request), text="Нет доступа", status_code=403)
+    if status in LEAD_STATUSES:
+        with db.db() as con:
+            con.execute("UPDATE leads SET status = ? WHERE id = ?", (status, lead_id))
+    return RedirectResponse(P + "/admin/leads", 303)
+
+
+LEAD_STATUSES = ["новая", "в работе", "договор", "отказ"]
+templates.env.globals["LEAD_STATUSES"] = LEAD_STATUSES

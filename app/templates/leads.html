@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Заявки{% endblock %}
+{% block main %}
+<div class="row space"><h1>Заявки с сайта</h1><a href="{{ P }}/admin">Лаборатории в кабинете →</a></div>
+<p class="muted">Всего: {{ leads|length }}. Ответить — кнопкой «Ответить» в письме-заявке или по почте ниже.</p>
+{% if leads %}
+<div class="tbl"><table>
+  <tr><th>Дата</th><th>Откуда</th><th>Почта / организация</th><th>Готовность</th><th>Сообщение и разбор</th><th>Статус</th></tr>
+  {% for l in leads %}
+  <tr>
+    <td>{{ l.created[:16] }}</td>
+    <td>{{ sources.get(l.source, l.source) }}</td>
+    <td><a href="mailto:{{ l.email }}">{{ l.email }}</a><br><small class="muted">{{ l.org }}</small></td>
+    <td>{% if l.score is not none %}<b>{{ l.score }}%</b>{% endif %}</td>
+    <td>{{ l.message }}{% if l.details %}<details class="done"><summary>Разбор</summary><pre style="white-space:pre-wrap;font-size:12px">{{ l.details }}</pre></details>{% endif %}</td>
+    <td><form method="post" action="{{ P }}/admin/leads/{{ l.id }}" class="row">
+      <select name="status" onchange="this.form.submit()">{% for s in LEAD_STATUSES %}<option {{ 'selected' if l.status == s }}>{{ s }}</option>{% endfor %}</select>
+      <noscript><button class="btn small">OK</button></noscript></form></td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}<div class="box">Заявок пока нет.</div>{% endif %}
+{% endblock %}

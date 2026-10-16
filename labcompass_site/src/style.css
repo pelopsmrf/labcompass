@@ -83,6 +83,16 @@ details p { color: var(--muted); margin: 10px 0 0; }
 .contact .btn.ghost { background: transparent; color: #fff; }
 .contact .btn.ghost:hover { background: rgba(255,255,255,.12); }
 
+.cform { text-align: left; margin: 26px auto 8px; max-width: 640px; }
+.cf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.cform input[type=email], .cform input[type=text], .cform textarea { width: 100%; padding: 12px 13px; border: 0; border-radius: 8px; font: inherit; }
+.cform textarea { min-height: 110px; resize: vertical; }
+.cf-consent { display: block; font-size: 14px; margin: 12px 0 16px; color: rgba(255,255,255,.9); }
+.cf-consent a { color: #fff; }
+.cform button { cursor: pointer; font: inherit; font-weight: 600; }
+.cf-msg { font-weight: 600; margin: 12px 0 0; min-height: 1em; }
+.hp { position: absolute; left: -9999px; }
+
 footer { padding: 26px 0; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
 .foot-in { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 
@@ -96,6 +106,7 @@ footer { padding: 26px 0; color: var(--muted); font-size: 14px; border-top: 1px 
   section { padding: 52px 0; }
   .cards.four, .cards.three, .steps { grid-template-columns: 1fr; }
   .hero-card { display: none; }
+  .cf-grid { grid-template-columns: 1fr; }
   .btn { width: 100%; text-align: center; }
   .btn.small { width: auto; }
 }
