@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Код из письма{% endblock %}
+{% block main %}
+<div class="narrow" style="margin:30px auto">
+  <div class="box">
+    <h1>Введите код из письма</h1>
+    {% if error %}<div class="error">{{ error }}</div>{% else %}<div class="notice">Код отправлен на <b>{{ email }}</b>. Он действует 10 минут.</div>{% endif %}
+    <form method="post" action="{{ P }}/verify">
+      <input type="hidden" name="email" value="{{ email }}">
+      <label for="code">Код</label>
+      <input type="text" id="code" name="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required autofocus>
+      <p><button class="btn">Войти</button></p>
+    </form>
+    <p class="muted"><small>Не пришло? Проверьте «Спам» или <a href="{{ P }}/login">укажите почту заново</a>.</small></p>
+  </div>
+</div>
+{% endblock %}

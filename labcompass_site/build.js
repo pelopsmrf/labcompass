@@ -26,7 +26,7 @@ fs.writeFileSync(path.join(dist, "robots.txt"), "User-agent: *\nAllow: /\nSitema
 const today = new Date().toISOString().slice(0, 10);
 fs.writeFileSync(path.join(dist, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-  ["https://labcompass.ru/", "https://labcompass.ru/vlk/"].map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join("\n") +
+  ["https://labcompass.ru/", "https://labcompass.ru/check/", "https://labcompass.ru/vlk/"].map((u) => `  <url><loc>${u}</loc><lastmod>${today}</lastmod></url>`).join("\n") +
   `\n</urlset>\n`);
 
 const left = html.match(/\{\{\w+\}\}/g);

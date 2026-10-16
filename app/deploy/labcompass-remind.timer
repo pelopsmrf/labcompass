@@ -1,0 +1,10 @@
+# Напоминания о сроках поверки — каждый день в 08:00 по Москве
+[Unit]
+Description=LabCompass reminders daily
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 Europe/Moscow
+Persistent=true
+
+[Install]
+WantedBy=timers.target

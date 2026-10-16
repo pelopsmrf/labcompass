@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Админка{% endblock %}
+{% block main %}
+<h1>Админка: лаборатории</h1>
+<p class="muted">Всего: {{ users|length }}. Подписка включается датой «оплачено до»; пустая дата — бесплатный тариф.</p>
+<div class="tbl"><table>
+  <tr><th>Почта</th><th>Организация</th><th>Оборудование</th><th>Зарегистрирован</th><th>Последний вход</th><th>Оплачено до</th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.email }}{% if u.is_admin %} <small class="muted">админ</small>{% endif %}</td>
+    <td>{{ u.org }}</td>
+    <td>{{ u['items'] }}</td>
+    <td>{{ u.created[:10] }}</td>
+    <td>{{ (u.last_login or '')[:16] }}</td>
+    <td><form method="post" action="{{ P }}/admin/{{ u.id }}" class="row">
+      <input type="date" name="paid_until" value="{{ u.paid_until or '' }}" style="width:160px">
+      <button class="btn small">OK</button>
+      {% if u.paid_until and u.paid_until >= today %}<span class="st st-ok">активна</span>{% elif u.paid_until %}<span class="st st-overdue">истекла</span>{% endif %}
+    </form></td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Самопроверка готовности лаборатории к аккредитации — ЛабКомпас</title>
+<meta name="description" content="Бесплатный чек-лист по ГОСТ ISO/IEC 17025-2019: 43 вопроса, процент готовности по разделам и список слабых мест перед аккредитацией или подтверждением компетентности.">
+<link rel="canonical" href="https://labcompass.ru/check/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<style>
+  button.btn { font: inherit; font-weight: 600; cursor: pointer; }
+  .chk-head { padding: 48px 0 28px; background: linear-gradient(180deg, var(--blue-soft), #fff); }
+  .chk-head h1 { font-size: clamp(26px, 3.6vw, 38px); }
+  .chk section { padding: 0; }
+  .grp { margin: 34px 0 0; }
+  .grp h2 { font-size: 21px; margin: 0 0 6px; }
+  .grp .clause { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+  .q { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 10px 0; background: #fff; }
+  .q.key { border-left: 4px solid var(--blue); }
+  .q p { margin: 0 0 4px; font-weight: 600; }
+  .q small { display: block; color: var(--muted); margin-bottom: 10px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opts label { border: 1px solid var(--line); border-radius: 20px; padding: 5px 14px; cursor: pointer; font-size: 14px; user-select: none; }
+  .opts input { position: absolute; opacity: 0; pointer-events: none; }
+  .opts input:focus-visible + span { outline: 2px solid var(--blue); outline-offset: 3px; }
+  .opts label:has(input:checked) { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .opts label.o-no:has(input:checked) { background: var(--bad); border-color: var(--bad); }
+  .opts label.o-part:has(input:checked) { background: var(--warn); border-color: var(--warn); }
+  .opts label.o-na:has(input:checked) { background: var(--muted); border-color: var(--muted); }
+  .bar { position: sticky; bottom: 0; background: rgba(255,255,255,.96); border-top: 1px solid var(--line); padding: 12px 0; margin-top: 30px; z-index: 5; }
+  .bar .wrap { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .progress { color: var(--muted); font-size: 15px; }
+  #result { display: none; padding: 40px 0 10px; }
+  .score { font-size: 54px; font-weight: 700; line-height: 1; }
+  .verdict { font-size: 19px; font-weight: 600; margin: 8px 0 20px; }
+  .rows { display: grid; gap: 8px; margin: 18px 0; }
+  .row { display: grid; grid-template-columns: 1fr 200px 52px; gap: 12px; align-items: center; font-size: 15px; }
+  .meter { height: 10px; background: var(--alt); border-radius: 6px; overflow: hidden; }
+  .meter i { display: block; height: 100%; border-radius: 6px; }
+  .gaps li { margin: 6px 0; }
+  .gaps .tagk { color: var(--blue); font-weight: 600; font-size: 13px; }
+  .ok-c { color: var(--ok); } .warn-c { color: var(--warn); } .bad-c { color: var(--bad); }
+  .ok-b { background: var(--ok); } .warn-b { background: var(--warn); } .bad-b { background: var(--bad); }
+  @media (max-width: 580px) { .row { grid-template-columns: 1fr 70px 46px; } }
+  @media print {
+    .nav, .bar, .chk, .chk-head .cta, footer, .no-print { display: none !important; }
+    #result { display: block !important; padding-top: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="../" aria-label="ЛабКомпас — на главную">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M16 5 L20 16 L16 27 L12 16 Z" fill="currentColor" opacity=".3"/><path d="M16 5 L20 16 L12 16 Z" fill="currentColor"/></svg>
+      ЛабКомпас
+    </a>
+    <nav>
+      <a href="../vlk/">Калькулятор ВЛК</a>
+      <a href="../app/">Учёт оборудования</a>
+      <a href="../#contact" class="btn small">Связаться</a>
+    </nav>
+  </div>
+</header>
+
+<div class="chk-head">
+  <div class="wrap narrow">
+    <p class="eyebrow">Бесплатный инструмент</p>
+    <h1>Самопроверка готовности лаборатории к&nbsp;аккредитации</h1>
+    <p class="lead">Вопросы по разделам ГОСТ ISO/IEC 17025-2019 и типичным замечаниям экспертов. Займёт 10–15 минут. На выходе — процент готовности по разделам и список того, что доработать.</p>
+    <p class="note">Ответы сохраняются только в вашем браузере и никуда не отправляются. Синяя полоса слева — ключевые вопросы: по ним эксперты чаще всего пишут несоответствия.</p>
+  </div>
+</div>
+
+<main class="chk"><div class="wrap narrow" id="form"></div></main>
+
+<div class="bar">
+  <div class="wrap narrow">
+    <span class="progress" id="progress"></span>
+    <span class="cta" style="margin:0">
+      <button class="btn ghost" id="reset" type="button">Очистить</button>
+      <button class="btn" id="show" type="button">Показать результат</button>
+    </span>
+  </div>
+</div>
+
+<section id="result">
+  <div class="wrap narrow">
+    <h2>Результат самопроверки</h2>
+    <div class="score" id="score"></div>
+    <div class="verdict" id="verdict"></div>
+    <div class="rows" id="rows"></div>
+    <h2 style="margin-top:34px">Что доработать</h2>
+    <ol class="gaps" id="gaps"></ol>
+    <p class="note">Самопроверка — ориентир, а не заключение эксперта. Требования сверяйте с ГОСТ ISO/IEC 17025-2019 и действующими критериями аккредитации.</p>
+    <div class="cta no-print">
+      <button class="btn" type="button" onclick="print()">Печать / сохранить в PDF</button>
+      <a class="btn ghost" href="../#contact">Обсудить результат с консультантом</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-in">
+    <span>ЛабКомпас · labcompass.ru</span>
+    <span>Независимый консультант. Не является органом по аккредитации.</span>
+  </div>
+</footer>
+
+<script>
+// Вопросы: [раздел, пункты ГОСТ, [[текст, подсказка, ключевой?], ...]]
+const GROUPS = [
+  ["Беспристрастность и конфиденциальность", "4.1, 4.2", [
+    ["Руководство приняло обязательства по беспристрастности, риски для беспристрастности выявляются и анализируются", "Есть заявление/приказ и записи анализа рисков (не реже раза в год)", 0],
+    ["Обязательства по конфиденциальности оформлены", "Подписи персонала, пункты в договорах с заказчиками и внешними исполнителями", 0],
+  ]],
+  ["Структура и область", "5", [
+    ["Определены структура лаборатории, подчинённость и место в организации", "Схема, положение о лаборатории; отделены ли испытания от влияния производства", 0],
+    ["Область аккредитации актуальна: методики в ней — действующие редакции, объекты и показатели совпадают с практикой", "Сверка области в реестре ФГИС Росаккредитации с фактически выполняемыми работами", 1],
+    ["Назначены ответственные за СМ, ВЛК, оборудование, документацию; определено замещение", "Приказы, должностные инструкции", 0],
+  ]],
+  ["Персонал", "6.2", [
+    ["Требования к компетентности по каждой должности задокументированы", "Образование, опыт, знания для каждой должности", 0],
+    ["Есть записи об обучении, стажировке и допуске к самостоятельной работе по каждой методике", "Листы допуска, протоколы стажировки; эксперт сверяет их с исполнителями в протоколах", 1],
+    ["Проводится мониторинг компетентности персонала по плану", "Контроль выполнения испытаний, результаты ВЛК/МСИ по исполнителю, записи", 1],
+  ]],
+  ["Помещения и условия", "6.3", [
+    ["Условия окружающей среды, нужные методикам и оборудованию, определены, контролируются и регистрируются", "Журналы температуры и влажности, поверенные термогигрометры", 1],
+    ["Доступ в помещения контролируется, несовместимые работы разделены", "Например, приготовление растворов и работа с низкими концентрациями", 0],
+  ]],
+  ["Оборудование", "6.4", [
+    ["Перечень оборудования (СИ, ИО, ВО) полный и актуальный, соответствует области", "Всё, что указано в методиках, есть в перечне и в наличии", 1],
+    ["Все СИ поверены или откалиброваны в срок, сведения о поверке есть во ФГИС «Аршин»", "Проверьте СИ по номерам на fgis.gost.ru — бумажного свидетельства недостаточно", 1],
+    ["Испытательное оборудование аттестовано (ГОСТ Р 8.568)", "Термостаты, сушильные шкафы, муфельные печи и т.п.", 1],
+    ["Утверждён и выполняется график поверки, калибровки, аттестации и ТО", "Нет просроченных позиций; есть отметки о выполнении", 0],
+    ["Промежуточные проверки проводятся, неисправное оборудование маркируется и выводится из работы", "Записи промежуточных проверок, этикетки статуса", 0],
+    ["Стандартные образцы и реактивы учитываются: сроки годности, условия хранения, журнал приготовления растворов", "Просроченные ГСО и растворы без записей — частое замечание", 1],
+  ]],
+  ["Прослеживаемость и внешние поставщики", "6.5, 6.6", [
+    ["Метрологическая прослеживаемость обеспечена: поверка/калибровка в аккредитованных организациях, ГСО утверждённого типа", "", 0],
+    ["Определены требования к поставщикам и подрядчикам, проводится их оценка, есть записи", "Поставщики реактивов, поверки, ремонта; приёмка поступившего", 0],
+  ]],
+  ["Заявки и методы", "7.1, 7.2", [
+    ["Заявки и договоры анализируются: возможность выполнения, согласованные методы, правило принятия решения", "Записи анализа заявок; правило принятия решения при заявлении о соответствии нормативу", 0],
+    ["Используются действующие редакции методик, есть порядок их актуализации", "Проверка актуальности по фонду стандартов / реестру методик", 1],
+    ["Внедрение (верификация) каждой методики оформлено, показатели точности подтверждены в лаборатории", "Акты/протоколы внедрения с расчётами по РМГ 76-2014", 1],
+    ["Для методик лаборатории и модифицированных методик проведена валидация", "Отметьте «Не применимо», если таких методик нет", 0],
+  ]],
+  ["Пробы и записи", "7.3–7.5", [
+    ["Отбор проб ведётся по программе/плану, оформляются акты отбора", "Если лаборатория отбирает пробы сама; иначе — «Не применимо»", 0],
+    ["Пробы регистрируются и однозначно идентифицируются, соблюдаются условия и сроки хранения", "Журнал регистрации, маркировка, контроль сохранности", 0],
+    ["Рабочие записи позволяют повторить испытание: исходные данные, исполнитель, оборудование; исправления — без потери исходной записи", "Зачёркивание одной чертой, подпись и дата; без корректора и «перепечатывания»", 1],
+  ]],
+  ["Неопределённость и достоверность результатов", "7.6, 7.7", [
+    ["Для всех методик области установлены показатели точности или оценена неопределённость", "", 1],
+    ["Программа ВЛК утверждена и выполняется: оперативный контроль, контроль стабильности, контрольные карты", "Карты Шухарта ведутся и анализируются, а не просто заполняются", 1],
+    ["Лаборатория участвует в проверках квалификации (МСИ) по плану, результаты анализируются", "План на цикл аккредитации по группам объектов и показателям, действия по неудовлетворительным результатам", 1],
+  ]],
+  ["Протоколы и данные", "7.8, 7.11", [
+    ["Протоколы содержат все обязательные сведения, есть порядок внесения изменений в выданные протоколы", "Сверка формы протокола с п. 7.8 ГОСТ и критериями аккредитации", 1],
+    ["Сведения о выданных протоколах передаются во ФГИС Росаккредитации в установленный срок", "Если это требуется для вашей области", 0],
+    ["Расчётные таблицы Excel и ЛИМС проверены, данные защищены и резервируются", "Защита ячеек с формулами, записи проверки, резервные копии", 0],
+  ]],
+  ["Жалобы и несоответствующая работа", "7.9, 7.10", [
+    ["Есть порядок работы с жалобами, жалобы регистрируются", "Даже если жалоб не было — должен быть журнал/реестр", 0],
+    ["Несоответствующая работа выявляется и оформляется, оцениваются последствия", "Например, выход за предел действия на карте ВЛК", 0],
+  ]],
+  ["Система менеджмента", "8", [
+    ["Руководство по качеству и процедуры актуальны и описывают реальную практику", "Эксперт сверяет документ с тем, что делают люди", 1],
+    ["Документы управляются: реестр, актуальные версии на рабочих местах, внешние документы актуализированы", "", 0],
+    ["Определены сроки хранения записей, ведётся архив", "", 0],
+    ["Риски и возможности выявлены, мероприятия выполняются, их результативность оценивается", "Реестр рисков с датами и отметками о выполнении", 0],
+    ["Корректирующие действия оформляются: анализ причин, мероприятия, проверка результативности", "", 1],
+    ["Внутренние аудиты проводятся по программе и охватывают все требования и всю область", "Отчёты аудитов, независимость аудитора от проверяемой работы", 1],
+    ["Анализ со стороны руководства проводится ежегодно по всем входным данным п. 8.9.2", "Протокол анализа с решениями и сроками", 0],
+  ]],
+  ["Росаккредитация", "Критерии аккредитации, 412-ФЗ", [
+    ["Сведения в реестре аккредитованных лиц актуальны: адреса, руководитель, область", "Изменения сообщаются в установленные сроки", 0],
+    ["Известна дата очередного подтверждения компетентности, заявление планируется заранее", "Отметьте «Не применимо» при первичной аккредитации", 0],
+    ["Лаборатория выполняет испытания по всей области (есть протоколы по каждой группе)", "Длительное невыполнение работ по части области — повод для вопросов эксперта", 0],
+  ]],
+];
+const OPTS = [["yes", "Да", 1], ["part", "Частично", 0.5], ["no", "Нет", 0], ["na", "Не применимо", null]];
+const KEY = "labcompass-check-v1";
+let answers = {};
+try { answers = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) {}
+
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const form = document.getElementById("form");
+let total = 0;
+form.innerHTML = GROUPS.map(([title, clause, qs], g) =>
+  `<section class="grp"><h2>${g + 1}. ${esc(title)}</h2><p class="clause">ГОСТ ISO/IEC 17025-2019, п. ${esc(clause)}</p>` +
+  qs.map(([text, hint, key], i) => {
+    const id = g + "-" + i; total++;
+    return `<div class="q${key ? " key" : ""}"><p>${esc(text)}</p>${hint ? `<small>${esc(hint)}</small>` : ""}<div class="opts">` +
+      OPTS.map(([v, l]) => `<label class="o-${v}"><input type="radio" name="${id}" value="${v}"${answers[id] === v ? " checked" : ""}><span>${l}</span></label>`).join("") +
+      `</div></div>`;
+  }).join("") + `</section>`).join("");
+
+const progress = () => {
+  document.getElementById("progress").textContent = `Отвечено: ${Object.keys(answers).length} из ${total}`;
+};
+form.addEventListener("change", (e) => {
+  answers[e.target.name] = e.target.value;
+  localStorage.setItem(KEY, JSON.stringify(answers));
+  progress();
+});
+progress();
+
+document.getElementById("reset").onclick = () => {
+  if (!confirm("Очистить все ответы?")) return;
+  answers = {}; localStorage.removeItem(KEY);
+  form.querySelectorAll("input").forEach((i) => (i.checked = false));
+  document.getElementById("result").style.display = "none";
+  progress();
+};
+
+const level = (p) => (p >= 85 ? "ok" : p >= 60 ? "warn" : "bad");
+document.getElementById("show").onclick = () => {
+  const val = Object.fromEntries(OPTS.map(([v, , w]) => [v, w]));
+  let sum = 0, max = 0;
+  const rows = [], gaps = [];
+  GROUPS.forEach(([title, , qs], g) => {
+    let s = 0, m = 0;
+    qs.forEach(([text, , key], i) => {
+      const a = answers[g + "-" + i];
+      const w = key ? 2 : 1; // ключевые вопросы весят вдвое больше
+      if (a === "na") return;
+      m += w; s += a ? val[a] * w : 0;
+      if (a !== "yes") gaps.push({ text, key, a, title });
+    });
+    sum += s; max += m;
+    if (m) rows.push([title, Math.round((100 * s) / m)]);
+  });
+  const p = max ? Math.round((100 * sum) / max) : 0;
+  const lv = level(p);
+  document.getElementById("score").innerHTML = `<span class="${lv}-c">${p}%</span>`;
+  document.getElementById("verdict").textContent = {
+    ok: "Высокая готовность: осталось закрыть отдельные пункты.",
+    warn: "Средняя готовность: есть пробелы, которые эксперт, скорее всего, найдёт.",
+    bad: "Низкая готовность: до подачи заявления нужна системная доработка.",
+  }[lv];
+  document.getElementById("rows").innerHTML = rows.map(([t, v]) =>
+    `<div class="row"><span>${esc(t)}</span><span class="meter"><i class="${level(v)}-b" style="width:${v}%"></i></span><b class="${level(v)}-c">${v}%</b></div>`).join("");
+  // Сначала ключевые, затем «Нет», «Частично», без ответа
+  const order = { no: 0, part: 1, undefined: 2 };
+  gaps.sort((a, b) => b.key - a.key || order[a.a] - order[b.a]);
+  const mark = { no: "нет", part: "частично", undefined: "нет ответа" };
+  document.getElementById("gaps").innerHTML = gaps.length
+    ? gaps.map((x) => `<li>${esc(x.text)} — <i>${mark[x.a]}</i>${x.key ? ' <span class="tagk">ключевой</span>' : ""}<br><small class="clause">${esc(x.title)}</small></li>`).join("")
+    : "<li>Пробелов не отмечено.</li>";
+  const r = document.getElementById("result");
+  r.style.display = "block";
+  r.scrollIntoView({ behavior: "smooth" });
+};
+</script>
+</body>
+</html>

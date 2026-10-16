@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block title %}Профиль{% endblock %}
+{% block main %}
+<div class="narrow">
+  <h1>Профиль</h1>
+  <div class="box">
+    <form method="post" action="{{ P }}/profile">
+      <label>Почта</label><div>{{ user.email }}</div>
+      <label for="org">Лаборатория / организация</label>
+      <input type="text" id="org" name="org" value="{{ user.org }}" placeholder="ИЛ ООО «Водоканал»" required>
+      <label class="check"><input type="checkbox" name="remind" value="1" {% if user.remind %}checked{% endif %}>
+        <span>Присылать напоминания о сроках поверки на почту (за 30 и 7 дней и в день срока)</span></label>
+      <p><button class="btn">Сохранить</button></p>
+    </form>
+  </div>
+  <h2>Тариф</h2>
+  <div class="box">
+    {% if paid %}
+      <p>Подписка действует до <b>{{ ru(user.paid_until) }}</b>. Количество оборудования не ограничено.</p>
+    {% else %}
+      <p>Бесплатный тариф: до {{ FREE_LIMIT }} единиц оборудования.</p>
+      <p>Подписка снимает ограничение. Чтобы оформить — напишите на <a href="mailto:info@labcompass.ru?subject=Подписка ЛабКомпас&body=Почта в кабинете: {{ user.email }}">info@labcompass.ru</a>, пришлём счёт.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

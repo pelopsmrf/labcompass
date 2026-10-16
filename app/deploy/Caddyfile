@@ -1,0 +1,19 @@
+# /etc/caddy/Caddyfile: сайт — статикой, /app/ — в Python-приложение
+labcompass.ru {
+	encode gzip
+	# Второй замок на админку: пароль Caddy (хэш: caddy hash-password)
+	basic_auth /app/admin* {
+		admin ХЭШ_ПАРОЛЯ
+	}
+	handle /app* {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle {
+		root * /var/www/labcompass/labcompass_site/dist
+		file_server
+	}
+}
+
+www.labcompass.ru {
+	redir https://labcompass.ru{uri} permanent
+}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% block title %}Вставить из Excel{% endblock %}
+{% block main %}
+<div style="max-width:980px">
+  <p><a href="{{ P }}/equipment">← К списку</a></p>
+  <h1>Вставить список оборудования из Excel</h1>
+  {% if errors %}<div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}Ничего не сохранено — исправьте и вставьте снова.</div>{% endif %}
+  <div class="box">
+    <p>Выделите строки в Excel, скопируйте (Ctrl+C) и вставьте сюда (Ctrl+V). Порядок столбцов:</p>
+    <div class="tbl" style="margin-bottom:14px"><table><tr>{% for c in eq.IMPORT_COLUMNS %}<th>{{ loop.index }}. {{ c }}</th>{% endfor %}</tr>
+      <tr><td>Весы ВЛ-210</td><td>СИ</td><td>1234</td><td>0101</td><td>поверка</td><td>15.03.2026</td><td>12</td><td></td><td>С-ВЯ/15-03-2026/123</td></tr></table></div>
+    <p class="muted"><small>Строку заголовка можно не удалять. Даты — ДД.ММ.ГГГГ. Можно указать дату последней и интервал (срок посчитается) или сразу срок следующей. Пустые столбцы допустимы.</small></p>
+    <form method="post" action="{{ P }}/import">
+      <textarea name="text" required placeholder="Вставьте строки из Excel">{{ text or '' }}</textarea>
+      <p><button class="btn">Добавить в список</button></p>
+    </form>
+  </div>
+</div>
+{% endblock %}

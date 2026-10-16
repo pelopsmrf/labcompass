@@ -1,0 +1,53 @@
+{% extends "base.html" %}{% block title %}Оборудование{% endblock %}
+{% block main %}
+<div class="row space">
+  <h1>Оборудование{% if user.org %} — {{ user.org }}{% endif %}</h1>
+  <div class="row">
+    <a class="btn" href="{{ P }}/equipment/new">+ Добавить</a>
+    <a class="btn ghost" href="{{ P }}/import">Вставить из Excel</a>
+    <a class="btn ghost" href="{{ P }}/equipment.xlsx">График в Excel</a>
+  </div>
+</div>
+{% if not paid %}<div class="notice">Бесплатный тариф: {{ count }} из {{ limit }} единиц. <a href="{{ P }}/profile">Подписка</a> снимает ограничение.</div>{% endif %}
+<div class="stats">
+  <a class="stat overdue" href="?show=overdue"><b>{{ totals.overdue }}</b>просрочено</a>
+  <a class="stat soon" href="?show=soon"><b>{{ totals.soon }}</b>срок в ближайшие {{ eq.SOON_DAYS }} дней</a>
+  <a class="stat ok" href="?show=ok"><b>{{ totals.ok }}</b>в порядке</a>
+  <a class="stat" href="?show=none"><b>{{ totals.none }}</b>срок не указан</a>
+</div>
+<div class="row space" style="margin-bottom:12px">
+  <div class="tabs" style="margin:0">
+    <a href="?" class="{{ 'on' if not show }}">Все</a>
+    {% for k, v in eq.STATUS_NAMES.items() %}<a href="?show={{ k }}" class="{{ 'on' if show == k }}">{{ v }}</a>{% endfor %}
+    <a href="?show=archive" class="{{ 'on' if show == 'archive' }}">Архив</a>
+  </div>
+  <form method="get" class="row"><input type="hidden" name="show" value="{{ show }}"><input type="text" name="q" value="{{ q }}" placeholder="Поиск: название, номер" style="width:240px"></form>
+</div>
+{% if items %}
+<div class="tbl"><table>
+  <tr><th>Наименование, тип</th><th>Вид</th><th>Зав. № / инв. №</th><th>Обслуживание</th><th>Последняя</th><th>Срок</th><th>Статус</th><th></th></tr>
+  {% for it in items %}
+  <tr>
+    <td><a href="{{ P }}/equipment/{{ it.id }}">{{ it.name }}</a>{% if it.place %}<br><small class="muted">{{ it.place }}</small>{% endif %}</td>
+    <td>{{ it.kind }}</td>
+    <td>{{ it.serial }}{% if it.inv_no %}<br><small class="muted">инв. {{ it.inv_no }}</small>{% endif %}</td>
+    <td>{{ it.service }}{% if it.interval_months %}<br><small class="muted">раз в {{ it.interval_months }} мес.</small>{% endif %}</td>
+    <td>{{ ru(it.last_date) }}</td>
+    <td>{{ ru(it.next_date) }}</td>
+    <td><span class="st st-{{ it.status }}">{{ eq.STATUS_NAMES[it.status] }}</span>
+      {% if it.days_left is not none %}<br><small class="muted">{% if it.days_left < 0 %}{{ -it.days_left }} дн. назад{% else %}через {{ it.days_left }} дн.{% endif %}</small>{% endif %}</td>
+    <td>{% if show != 'archive' and it.service != 'не требуется' %}
+      <details class="done"><summary>Отметить выполнение</summary>
+        <form method="post" action="{{ P }}/equipment/{{ it.id }}/done">
+          <input type="date" name="done_date" required>
+          <input type="text" name="doc_no" placeholder="№ свидетельства / Аршин">
+          <button class="btn small">Сохранить</button>
+          {% if not it.interval_months %}<small class="muted">Интервал не указан — срок нужно будет ввести вручную</small>{% endif %}
+        </form></details>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}
+<div class="box"><p>{% if show or q %}Ничего не найдено.{% else %}Оборудования пока нет. <a href="{{ P }}/equipment/new">Добавьте первую позицию</a> или <a href="{{ P }}/import">вставьте список из Excel</a>.{% endif %}</p></div>
+{% endif %}
+{% endblock %}

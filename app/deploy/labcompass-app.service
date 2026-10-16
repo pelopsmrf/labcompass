@@ -1,0 +1,14 @@
+# Кабинет ЛабКомпас (FastAPI). Установка: см. app/DEPLOY.md
+[Unit]
+Description=LabCompass app
+After=network.target
+
+[Service]
+User=labcompass
+WorkingDirectory=/var/www/labcompass/app
+ExecStart=/opt/labcompass-venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --proxy-headers
+Restart=always
+EnvironmentFile=/etc/labcompass/app.env
+
+[Install]
+WantedBy=multi-user.target

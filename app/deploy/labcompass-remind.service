@@ -1,0 +1,9 @@
+[Unit]
+Description=LabCompass reminders
+
+[Service]
+Type=oneshot
+User=labcompass
+WorkingDirectory=/var/www/labcompass/app
+EnvironmentFile=/etc/labcompass/app.env
+ExecStart=/opt/labcompass-venv/bin/python remind.py
