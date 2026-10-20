@@ -47,7 +47,7 @@ ym(${Number(metrika)},"init",{clickmap:true,trackLinks:true,accurateTrackBounce:
 ` : "";
 if (metrika && !/^\d+$/.test(metrika)) throw new Error("metrika в config.json — только цифры номера счётчика");
 const allHtml = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-  e.isDirectory() ? allHtml(path.join(dir, e.name)) : e.name.endsWith(".html") ? [path.join(dir, e.name)] : []);
+  e.isDirectory() ? allHtml(path.join(dir, e.name)) : e.name.endsWith(".html") && !e.name.startsWith("yandex_") ? [path.join(dir, e.name)] : []);
 for (const f of allHtml(dist)) {
   // Версия в адресе style.css: после обновления браузер не возьмёт старое оформление из кэша
   let h = fs.readFileSync(f, "utf8").replace(/href="(?:\.\.\/|\/)?style\.css"/g, `href="${cssV}"`);
