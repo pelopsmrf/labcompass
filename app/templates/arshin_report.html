@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block title %}Обновление из «Аршина»{% endblock %}
+{% block main %}
+<div style="max-width:880px">
+  <p><a href="{{ P }}/equipment">← К списку</a></p>
+  <h1>Обновление из «Аршина»</h1>
+  <div class="stats">
+    <div class="stat ok"><b>{{ r.updated|length }}</b>обновлено</div>
+    <div class="stat"><b>{{ r.same|length }}</b>без изменений</div>
+    <div class="stat soon"><b>{{ r.missing|length }}</b>не найдено</div>
+    <div class="stat"><b>{{ r.skipped|length }}</b>нет номеров</div>
+  </div>
+  {% if r.errors %}<div class="error">{{ r.errors[0][1] }}{% if r.errors|length > 1 %} (ошибок: {{ r.errors|length }}){% endif %}</div>{% endif %}
+  {% if r.updated %}<h2>Обновлено</h2>
+  <div class="tbl"><table><tr><th>Оборудование</th><th>Поверка</th><th>Годен до</th><th>Свидетельство</th></tr>
+    {% for it, rec in r.updated %}<tr><td><a href="{{ P }}/equipment/{{ it.id }}">{{ it.name }}</a></td><td>{{ ru(rec.date) }}</td>
+      <td>{% if rec.ok %}{{ ru(rec.valid) }}{% else %}<span class="st st-overdue">Непригоден</span>{% endif %}</td><td>{{ rec.docnum }}</td></tr>{% endfor %}
+  </table></div>{% endif %}
+  {% if r.missing %}<h2>Не найдено в «Аршине»</h2>
+  <p class="muted"><small>Проверьте заводской № и № в госреестре — они должны совпадать со свидетельством до символа.</small></p>
+  <ul>{% for it in r.missing %}<li><a href="{{ P }}/equipment/{{ it.id }}">{{ it.name }}</a> — зав. № {{ it.serial }}, {{ it.mit_number }}</li>{% endfor %}</ul>{% endif %}
+  {% if r.skipped %}<h2>Не проверялось: нет заводского № или № в госреестре СИ</h2>
+  <p class="muted"><small>Откройте карточку и нажмите «Найти в Аршине» — там можно выбрать прибор и без № госреестра.</small></p>
+  <ul>{% for it in r.skipped %}<li><a href="{{ P }}/equipment/{{ it.id }}">{{ it.name }}</a></li>{% endfor %}</ul>{% endif %}
+</div>
+{% endblock %}

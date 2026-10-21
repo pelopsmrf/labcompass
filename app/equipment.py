@@ -99,7 +99,8 @@ def norm_service(s):
 
 
 IMPORT_COLUMNS = ["Наименование, тип", "Вид (СИ/ИО/ВО)", "Заводской №", "Инвентарный №",
-                  "Обслуживание", "Дата последней", "Интервал, мес", "Срок следующей", "№ свидетельства / Аршин"]
+                  "Обслуживание", "Дата последней", "Интервал, мес", "Срок следующей", "№ свидетельства / Аршин",
+                  "№ в госреестре СИ"]
 
 
 def parse_paste(text):
@@ -111,7 +112,7 @@ def parse_paste(text):
     for n, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             continue
-        cells = [c.strip() for c in line.split("\t")] + [""] * 9
+        cells = [c.strip() for c in line.split("\t")] + [""] * 10
         name = cells[0]
         if not name or name.lower().startswith("наименование"):
             continue
@@ -126,6 +127,7 @@ def parse_paste(text):
             "name": name[:300], "kind": norm_kind(cells[1]), "serial": cells[2][:100], "inv_no": cells[3][:100],
             "service": norm_service(cells[4]), "last_date": last.isoformat() if last else None,
             "interval_months": interval, "next_date": nxt.isoformat() if nxt else None, "doc_no": cells[8][:200],
+            "mit_number": cells[9][:20],
         })
     return items, errors
 
@@ -148,7 +150,7 @@ def to_xlsx(items, org="", today=None):
     ws["A2"] = f"Сформирован {today.strftime('%d.%m.%Y')} в ЛабКомпас (labcompass.ru)"
     head = ["№", "Наименование, тип", "Вид", "Заводской №", "Инв. №", "Обслуживание",
             "Дата последней", "Интервал, мес", "Срок следующей", "Осталось дней", "Статус",
-            "№ свидетельства / Аршин", "Место / ответственный", "Примечание"]
+            "№ свидетельства / Аршин", "№ в госреестре СИ", "Место / ответственный", "Примечание"]
     ws.append([])
     ws.append(head)
     thin = Side(style="thin", color="BBBBBB")
@@ -160,16 +162,16 @@ def to_xlsx(items, org="", today=None):
     for i, it in enumerate(items, 1):
         ws.append([i, it["name"], it["kind"], it["serial"], it["inv_no"], it["service"], ru(it["last_date"]),
                    it["interval_months"], ru(it["next_date"]), it["days_left"], STATUS_NAMES[it["status"]],
-                   it["doc_no"], it["place"], it["note"]])
+                   it["doc_no"], it["mit_number"], it["place"], it["note"]])
         if it["status"] in fills:
             ws.cell(ws.max_row, 11).fill = PatternFill("solid", fgColor=fills[it["status"]])
     for row in ws.iter_rows(min_row=4, max_row=ws.max_row):
         for c in row:
             c.border = Border(top=thin, bottom=thin, left=thin, right=thin)
-    for col, w in zip("ABCDEFGHIJKLMN", [5, 40, 6, 14, 12, 13, 13, 10, 13, 10, 15, 24, 22, 24]):
+    for col, w in zip("ABCDEFGHIJKLMNO", [5, 40, 6, 14, 12, 13, 13, 10, 13, 10, 15, 24, 12, 22, 24]):
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "C5"
-    ws.auto_filter.ref = f"A4:N{ws.max_row}"
+    ws.auto_filter.ref = f"A4:O{ws.max_row}"
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

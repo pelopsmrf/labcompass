@@ -15,6 +15,10 @@
         <div><label for="inv_no">Инвентарный №</label><input type="text" id="inv_no" name="inv_no" value="{{ item.inv_no or '' }}" maxlength="100"></div>
       </div>
       <div class="grid2">
+        <div><label for="mit_number">№ в госреестре СИ</label><input type="text" id="mit_number" name="mit_number" value="{{ item.mit_number or '' }}" maxlength="20" placeholder="25405-03">
+          <small class="muted">Для поиска в «Аршине». Есть в паспорте и свидетельстве о поверке</small></div>
+        <div>{% if item.id and item.serial and item.kind == 'СИ' %}<label>&nbsp;</label><a class="btn ghost" href="{{ P }}/equipment/{{ item.id }}/arshin">Найти в «Аршине»</a>
+          {% if item.arshin_bad %}<br><span class="st st-overdue">По «Аршину» — непригоден</span>{% endif %}{% endif %}</div>
         <div><label for="service">Обслуживание</label><select id="service" name="service">
           {% for s in eq.SERVICES %}<option {{ 'selected' if item.service == s }}>{{ s }}</option>{% endfor %}</select></div>
         <div><label for="interval_months">Интервал, месяцев</label><input type="number" id="interval_months" name="interval_months" min="1" max="240" value="{{ item.interval_months or '' }}" placeholder="12"></div>

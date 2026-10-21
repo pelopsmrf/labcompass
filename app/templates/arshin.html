@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}Поиск в «Аршине»{% endblock %}
+{% block main %}
+<div style="max-width:980px">
+  <p><a href="{{ P }}/equipment/{{ item.id }}">← К карточке</a></p>
+  <h1>«Аршин»: {{ item.name }}</h1>
+  <p class="muted">Заводской № <b>{{ item.serial or '—' }}</b>{% if item.mit_number %}, № в госреестре СИ <b>{{ item.mit_number }}</b>{% endif %}.
+    Данные — из открытого реестра ФГИС «Аршин» (fgis.gost.ru).</p>
+  {% if error %}<div class="error">{{ error }}</div>
+  {% elif not recs %}
+  <div class="box"><p>В «Аршине» не нашлось поверок с таким заводским номером{% if item.mit_number %} и № в госреестре{% endif %}.</p>
+    <p class="muted"><small>Проверьте номер в карточке: он должен совпадать со свидетельством о поверке до символа.
+      Сведения о поверке появляются в «Аршине» не сразу — обычно в течение нескольких дней.</small></p></div>
+  {% else %}
+  {% if not item.mit_number %}<div class="notice">Показаны все приборы с таким заводским номером — выберите свой по типу.
+    Чтобы искать точно, укажите в карточке № в госреестре СИ (при выборе записи он подставится сам).</div>{% endif %}
+  <div class="tbl"><table>
+    <tr><th>Дата поверки</th><th>Годен до</th><th>Тип СИ</th><th>Свидетельство / извещение</th><th>Кто поверял</th><th></th></tr>
+    {% for r in recs %}
+    <tr>
+      <td>{{ ru(r.date) }}</td>
+      <td>{% if r.ok %}{{ ru(r.valid) }}{% else %}<span class="st st-overdue">Непригоден</span>{% endif %}</td>
+      <td>{{ r.mit_title }} {{ r.modification or r.notation }}<br><small class="muted">{{ r.mit_number }}</small></td>
+      <td>{% if card_url(r.vri_id) %}<a href="{{ card_url(r.vri_id) }}" target="_blank" rel="noopener">{{ r.docnum }}</a>{% else %}{{ r.docnum }}{% endif %}</td>
+      <td><small>{{ r.org }}</small></td>
+      <td><form method="post" action="{{ P }}/equipment/{{ item.id }}/arshin"><input type="hidden" name="vri_id" value="{{ r.vri_id }}">
+        <button class="btn small">Взять</button></form></td>
+    </tr>
+    {% endfor %}
+  </table></div>
+  <p class="muted"><small>«Взять» запишет в карточку дату поверки, срок «годен до», интервал и № свидетельства.</small></p>
+  {% endif %}
+</div>
+{% endblock %}

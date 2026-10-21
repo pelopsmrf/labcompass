@@ -10,6 +10,7 @@ os.environ.update(DB_PATH=os.path.join(tempfile.mkdtemp(), "t.db"), SMTP_HOST=""
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+import arshin  # noqa: E402
 import equipment as eq  # noqa: E402
 import mailer  # noqa: E402
 import main  # noqa: E402
@@ -44,6 +45,40 @@ class TestEquipment(unittest.TestCase):
         self.assertEqual(items[1]["kind"], "ИО")
         self.assertEqual(items[1]["service"], "аттестация")
         self.assertEqual(len(errors), 1)
+
+
+def fake_arshin(params):
+    """Ответ «Аршина» без сети: два прибора с зав. № 1234 разных типов, у мегаомметра — две поверки."""
+    items = [
+        {"vri_id": "1-2", "org_title": "ФБУ «ЦСМ»", "mit_number": "25405-03", "mit_title": "Мегаомметры",
+         "mi_modification": "Е6-24", "mi_number": "\ufffc1234", "verification_date": "20.10.2026",
+         "valid_date": "19.10.2027", "result_docnum": "С-ВЭ/20-10-2026/2", "applicability": True},
+        {"vri_id": "1-1", "org_title": "ФБУ «ЦСМ»", "mit_number": "25405-03", "mit_title": "Мегаомметры",
+         "mi_number": "1234", "verification_date": "15.10.2025", "valid_date": "14.10.2026",
+         "result_docnum": "С-ВЭ/15-10-2025/1", "applicability": True},
+        {"vri_id": "1-3", "org_title": "ООО «Поверка»", "mit_number": "13590-01", "mit_title": "Весы",
+         "mi_number": "1234", "verification_date": "01.09.2026", "result_docnum": "И-АР/01-09-2026/3",
+         "applicability": False},
+        {"vri_id": "1-4", "mit_number": "25405-03", "mi_number": "12345", "verification_date": "01.01.2026"},
+    ]
+    items = [i for i in items if not params.get("mit_number") or i["mit_number"] == params["mit_number"]]
+    return {"result": {"count": len(items), "items": items}}
+
+
+class TestArshin(unittest.TestCase):
+    def setUp(self):
+        arshin.fetch = fake_arshin
+
+    def test_search_and_interval(self):
+        recs = arshin.search("1234")
+        self.assertEqual([r["vri_id"] for r in recs], ["1-2", "1-3", "1-1"])  # чужой 12345 отброшен, новые первыми
+        self.assertEqual(arshin.interval("2026-10-20", "2027-10-19"), 12)
+        self.assertEqual(arshin.interval("2026-02-19", "2032-02-18"), 72)
+        ch = arshin.changes(recs[1])
+        self.assertEqual((ch["next_date"], ch["arshin_bad"]), (None, 1))
+        self.assertEqual(arshin.search("1234", "25405-03")[0]["valid"], "2027-10-19")
+        self.assertTrue(arshin.valid_mit("25405-03"))
+        self.assertFalse(arshin.valid_mit("Е6-24"))
 
 
 class TestApp(unittest.TestCase):
@@ -129,6 +164,47 @@ class TestApp(unittest.TestCase):
         self.assertIn("lead@lab.ru", page)
         self.assertIn("Нужна помощь", page)
         self.assertNotIn("bot@x.ru", page)
+
+    def test_arshin(self):
+        arshin.fetch = fake_arshin
+        login(self.c, "metro@lab.ru")
+        main.db.connect().execute("UPDATE users SET paid_until='2099-01-01' WHERE email='metro@lab.ru'").connection.commit()
+        r = self.c.post("/app/equipment/new", data={"name": "Мегаомметр", "serial": "1234", "mit_number": "Е6-24"})
+        self.assertIn("госреестре", r.text)  # неверный формат номера
+        self.c.post("/app/equipment/new", data={"name": "Мегаомметр", "serial": "1234", "mit_number": "25405-03",
+                                                "last_date": "2025-10-15", "interval_months": "12"})
+        self.c.post("/app/equipment/new", data={"name": "Весы", "serial": "1234"})
+        self.c.post("/app/equipment/new", data={"name": "Нет номера", "serial": "999", "mit_number": "11111-11"})
+        con = main.db.connect()
+        ids = {r["name"]: r["id"] for r in con.execute(
+            "SELECT e.id, e.name FROM equipment e JOIN users u ON u.id = e.user_id WHERE u.email='metro@lab.ru'")}
+        # карточка: без № госреестра видны оба прибора, берём весы — непригодны
+        r = self.c.get(f"/app/equipment/{ids['Весы']}/arshin")
+        self.assertIn("Мегаомметры", r.text)
+        self.assertIn("Непригоден", r.text)
+        self.c.post(f"/app/equipment/{ids['Весы']}/arshin", data={"vri_id": "1-3"})
+        it = con.execute("SELECT * FROM equipment WHERE id = ?", (ids["Весы"],)).fetchone()
+        self.assertEqual((it["last_date"], it["next_date"], it["arshin_bad"], it["mit_number"]),
+                         ("2026-09-01", None, 1, "13590-01"))
+        self.assertIn("Аршин: непригоден", self.c.get("/app/equipment").text)
+        r = self.c.post(f"/app/equipment/{ids['Весы']}/arshin", data={"vri_id": "подделка"})
+        self.assertEqual(r.status_code, 404)
+        # массовое обновление
+        r = self.c.post("/app/arshin")
+        self.assertIn("Обновлено", r.text)
+        it = con.execute("SELECT * FROM equipment WHERE id = ?", (ids["Мегаомметр"],)).fetchone()
+        self.assertEqual((it["last_date"], it["next_date"], it["doc_no"]), ("2026-10-20", "2027-10-19", "С-ВЭ/20-10-2026/2"))
+        self.assertIn("Нет номера", r.text)  # не найден
+        self.assertEqual(self.c.post("/app/arshin").status_code, 429)  # не чаще раза в 5 минут
+        # «Аршин» не отвечает
+        def down(params):
+            raise arshin.ArshinError("«Аршин» не ответил")
+        arshin.fetch = down
+        self.assertIn("не ответил", self.c.get(f"/app/equipment/{ids['Весы']}/arshin").text)
+        # чужой кабинет не видит
+        other = TestClient(main.app, base_url="http://testserver")
+        login(other, "spy@lab.ru")
+        self.assertEqual(other.get(f"/app/equipment/{ids['Весы']}/arshin").status_code, 404)
 
     def test_foreign_origin(self):
         r = self.c.post("/app/login", data={"email": "x@lab.ru", "consent": "1"},

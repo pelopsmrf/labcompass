@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS equipment (
     interval_months INTEGER,         -- межповерочный (межкалибровочный) интервал
     next_date TEXT,                  -- срок следующей
     doc_no TEXT NOT NULL DEFAULT '', -- № свидетельства / записи во ФГИС «Аршин» / аттестата
+    mit_number TEXT NOT NULL DEFAULT '', -- № в госреестре утверждённых типов СИ (25405-03)
+    arshin_bad INTEGER NOT NULL DEFAULT 0, -- по последней записи «Аршина» — непригоден
     place TEXT NOT NULL DEFAULT '',  -- место установки, ответственный
     note TEXT NOT NULL DEFAULT '',
     archived INTEGER NOT NULL DEFAULT 0,
@@ -101,6 +103,17 @@ def db():
         con.close()
 
 
+# Столбцы, добавленные после запуска: в старой базе их дописываем
+MIGRATIONS = {
+    "equipment": [("mit_number", "TEXT NOT NULL DEFAULT ''"), ("arshin_bad", "INTEGER NOT NULL DEFAULT 0")],
+}
+
+
 def init():
     with db() as con:
         con.executescript(SCHEMA)
+        for table, cols in MIGRATIONS.items():
+            have = {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}
+            for name, decl in cols:
+                if name not in have:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")

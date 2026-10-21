@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+import arshin
 import db
 import equipment as eq
 import leads
@@ -186,7 +187,7 @@ def profile_save(request: Request, org: str = Form(""), remind: str = Form("")):
 # ---------- Оборудование ----------
 
 FIELDS = ["name", "kind", "serial", "inv_no", "service", "last_date", "interval_months", "next_date",
-          "doc_no", "place", "note"]
+          "doc_no", "mit_number", "place", "note"]
 
 
 def active_count(con, user):
@@ -208,6 +209,8 @@ def item_from_form(form):
         return it, "Укажите наименование"
     it["kind"] = it["kind"] if it["kind"] in eq.KINDS else "СИ"
     it["service"] = it["service"] if it["service"] in eq.SERVICES else "поверка"
+    if not arshin.valid_mit(it["mit_number"]):
+        return it, "№ в госреестре СИ — в виде 25405-03 (есть в паспорте и свидетельстве о поверке)"
     try:
         last = eq.parse_date(it["last_date"])
         interval = eq.parse_interval(it["interval_months"])
@@ -305,9 +308,68 @@ def equipment_done(request: Request, item_id: int, done_date: str = Form(""), do
         except ValueError as e:
             return page(request, "message.html", user, text=str(e).capitalize(), status_code=400)
         nxt = eq.next_due(d, it["interval_months"])
-        con.execute("UPDATE equipment SET last_date = ?, next_date = ?, doc_no = ?, updated = ? WHERE id = ?",
+        con.execute("UPDATE equipment SET last_date = ?, next_date = ?, doc_no = ?, arshin_bad = 0, updated = ? WHERE id = ?",
                     (d.isoformat(), nxt.isoformat() if nxt else None, doc_no.strip() or it["doc_no"], now(), item_id))
     return RedirectResponse(P + "/equipment", 303)
+
+
+# ---------- ФГИС «Аршин» ----------
+
+ARSHIN_EVERY = 300  # массовое обновление — не чаще раза в 5 минут на кабинет
+arshin_runs = {}
+
+
+@app.get(P + "/equipment/{item_id}/arshin", response_class=HTMLResponse)
+def arshin_search(request: Request, item_id: int):
+    """Поиск поверок прибора в «Аршине»: пользователь выбирает, какую запись взять."""
+    user = need_user(request)
+    with db.db() as con:
+        it = get_item(con, user, item_id)
+    if not it:
+        return page(request, "message.html", user, text="Запись не найдена", status_code=404)
+    recs, error = [], None
+    if not it["serial"]:
+        error = "Укажите в карточке заводской номер — по нему ищем в «Аршине»."
+    else:
+        try:
+            recs = arshin.search(it["serial"], it["mit_number"])
+        except arshin.ArshinError as e:
+            error = str(e)
+    return page(request, "arshin.html", user, item=dict(it), recs=recs, error=error, card_url=arshin.card_url)
+
+
+@app.post(P + "/equipment/{item_id}/arshin")
+def arshin_take(request: Request, item_id: int, vri_id: str = Form("")):
+    """Взять запись «Аршина»: ищем заново и берём данные оттуда, а не из формы."""
+    user = need_user(request)
+    with db.db() as con:
+        it = get_item(con, user, item_id)
+        if not it:
+            return page(request, "message.html", user, text="Запись не найдена", status_code=404)
+        try:
+            recs = arshin.search(it["serial"], it["mit_number"])
+        except arshin.ArshinError as e:
+            return page(request, "message.html", user, text=str(e), status_code=502)
+        rec = next((r for r in recs if r["vri_id"] == vri_id), None)
+        if not rec:
+            return page(request, "message.html", user, text="Запись в «Аршине» не найдена", status_code=404)
+        arshin.apply(con, it, rec, now())
+    return RedirectResponse(P + "/equipment", 303)
+
+
+@app.post(P + "/arshin", response_class=HTMLResponse)
+def arshin_update_all(request: Request):
+    user = need_user(request)
+    last = arshin_runs.get(user["id"], 0)
+    if datetime.utcnow().timestamp() - last < ARSHIN_EVERY:
+        return page(request, "message.html", user, status_code=429,
+                    text="Обновление из «Аршина» уже запускалось. Повторить можно через 5 минут.")
+    arshin_runs[user["id"]] = datetime.utcnow().timestamp()
+    with db.db() as con:
+        rows = con.execute("SELECT * FROM equipment WHERE user_id = ? AND archived = 0 ORDER BY name",
+                           (user["id"],)).fetchall()
+        report = arshin.update_all(con, rows, now())
+    return page(request, "arshin_report.html", user, r=report)
 
 
 @app.get(P + "/import", response_class=HTMLResponse)
