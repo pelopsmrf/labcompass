@@ -1,2 +1,2 @@
 {% extends "base.html" %}
-{% block main %}<div class="box narrow" style="margin:30px auto"><p>{{ text }}</p><p><a href="{{ P }}/equipment">← К списку оборудования</a></p></div>{% endblock %}
+{% block main %}<div class="box narrow" style="margin:30px auto"><p>{{ text }}</p><p>{% if back %}<a href="{{ back[0] }}">{{ back[1] }}</a>{% else %}<a href="{{ P }}/equipment">← К списку оборудования</a>{% endif %}</p></div>{% endblock %}

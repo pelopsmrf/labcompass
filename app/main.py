@@ -17,6 +17,7 @@ import db
 import equipment as eq
 import leads
 import mailer
+import vlk
 
 P = "/app"  # приложение живёт по адресу labcompass.ru/app/
 SESSION_DAYS = 30
@@ -25,10 +26,13 @@ CODE_MINUTES = 10
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.mount(P + "/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
-templates.env.globals.update(P=P, eq=eq, ru=eq.ru, FREE_LIMIT=db.FREE_LIMIT,
+templates.env.globals.update(P=P, eq=eq, vlk=vlk, ru=eq.ru, FREE_LIMIT=db.FREE_LIMIT,
                              OPERATOR=os.environ.get("OPERATOR") or "владелец сайта labcompass.ru")
 # Версия оформления в адресе: после обновления браузер не возьмёт старый app.css из кэша
 templates.env.globals["CSS_V"] = hashlib.md5((Path(__file__).parent / "static" / "app.css").read_bytes()).hexdigest()[:8]
+# Число для показа и полей ввода: 6.5 → «6,5»; пусто → «»; неверный ввод показываем как есть
+templates.env.filters["pnum"] = lambda v: (v if isinstance(v, str) else f"{v:g}".replace(".", ",")
+                                           if isinstance(v, (int, float)) else "")
 db.init()
 
 
@@ -406,6 +410,189 @@ def equipment_xlsx(request: Request):
     name = f"grafik-poverki-{date.today().isoformat()}.xlsx"
     return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+# ---------- ВЛК ----------
+
+IND_FIELDS = ["name", "method", "range_text", "units", "sigma_r", "sigma_rl", "delta", "delta_lab", "use_lab",
+              "period", "note"]
+RES_FIELDS = ["run_date", "kind", "x1", "x2", "c", "xd1", "xd2", "performer"]
+MAX_IMPORT = 5000  # строк за одну вставку
+
+
+def get_indicator(con, user, ind_id):
+    return con.execute("SELECT * FROM vlk_indicators WHERE id = ? AND user_id = ?", (ind_id, user["id"])).fetchone()
+
+
+def ind_results(con, ind_id):
+    """Результаты в порядке проведения: по дате, без даты — в порядке ввода, раньше датированных."""
+    return con.execute("SELECT * FROM vlk_results WHERE indicator_id = ? ORDER BY COALESCE(run_date, ''), id",
+                       (ind_id,)).fetchall()
+
+
+def add_results(con, ind_id, rows):
+    con.executemany(f"INSERT INTO vlk_results (indicator_id, {', '.join(RES_FIELDS)}) VALUES (?{', ?' * len(RES_FIELDS)})",
+                    [[ind_id] + [r[f] for f in RES_FIELDS] for r in rows])
+    con.execute("UPDATE vlk_indicators SET updated = ? WHERE id = ?", (now(), ind_id))
+
+
+def not_found(request, user):
+    return page(request, "message.html", user, text="Показатель не найден", status_code=404,
+                back=(P + "/vlk", "← К списку показателей"))
+
+
+@app.get(P + "/vlk", response_class=HTMLResponse)
+def vlk_list(request: Request, show: str = ""):
+    user = need_user(request)
+    with db.db() as con:
+        inds = con.execute("SELECT * FROM vlk_indicators WHERE user_id = ? AND archived = ? ORDER BY name, id",
+                           (user["id"], int(show == "archive"))).fetchall()
+        items = [{**dict(i), **vlk.analyze(i, ind_results(con, i["id"]))} for i in inds]
+    totals = {s: sum(1 for i in items if i["status"] == s) for s in ("bad", "warn")}
+    totals["due"] = sum(1 for i in items if i["due_status"] == "overdue")
+    return page(request, "vlk_list.html", user, items=items, show=show, totals=totals)
+
+
+@app.get(P + "/vlk/new", response_class=HTMLResponse)
+def vlk_new(request: Request):
+    user = need_user(request)
+    return page(request, "vlk_params.html", user, ind={"units": "мг/дм³", "period": "month"})
+
+
+@app.post(P + "/vlk/new", response_class=HTMLResponse)
+async def vlk_create(request: Request):
+    user = need_user(request)
+    ind, error = vlk.indicator_from_form(await request.form())
+    if error:
+        return page(request, "vlk_params.html", user, ind=ind, error=error, status_code=400)
+    with db.db() as con:
+        cur = con.execute(f"INSERT INTO vlk_indicators (user_id, {', '.join(IND_FIELDS)}) VALUES (?{', ?' * len(IND_FIELDS)})",
+                          [user["id"]] + [ind[f] for f in IND_FIELDS])
+    return RedirectResponse(f"{P}/vlk/{cur.lastrowid}", 303)
+
+
+@app.post(P + "/vlk/project", response_class=HTMLResponse)
+async def vlk_project(request: Request):
+    """Файл .vlk.json из калькулятора → новый показатель с результатами."""
+    user = need_user(request)
+    form = await request.form()
+    f = form.get("file")
+    raw = await f.read(5_000_001) if hasattr(f, "read") else b""
+    if not raw or len(raw) > 5_000_000:
+        return page(request, "vlk_params.html", user, ind={"units": "мг/дм³", "period": "month"}, status_code=400,
+                    error="Выберите файл проекта .vlk.json (до 5 МБ)")
+    ind, rows, errors = vlk.parse_project(raw.decode("utf-8-sig", errors="replace"))
+    if errors or not ind:
+        return page(request, "vlk_params.html", user, ind={"units": "мг/дм³", "period": "month"}, status_code=400,
+                    error="Файл не загружен: " + "; ".join(errors[:5]) + (f" и ещё {len(errors) - 5}" if len(errors) > 5 else ""))
+    ind.update(method="", range_text="", period="", note="")
+    with db.db() as con:
+        cur = con.execute(f"INSERT INTO vlk_indicators (user_id, {', '.join(IND_FIELDS)}) VALUES (?{', ?' * len(IND_FIELDS)})",
+                          [user["id"]] + [ind[f] for f in IND_FIELDS])
+        add_results(con, cur.lastrowid, rows[:MAX_IMPORT])
+    return RedirectResponse(f"{P}/vlk/{cur.lastrowid}", 303)
+
+
+@app.get(P + "/vlk/{ind_id}", response_class=HTMLResponse)
+def vlk_card(request: Request, ind_id: int):
+    user = need_user(request)
+    with db.db() as con:
+        ind = get_indicator(con, user, ind_id)
+        if not ind:
+            return not_found(request, user)
+        a = vlk.analyze(ind, ind_results(con, ind_id))
+    return page(request, "vlk_card.html", user, ind=dict(ind), a=a, today=date.today().isoformat())
+
+
+@app.get(P + "/vlk/{ind_id}/edit", response_class=HTMLResponse)
+def vlk_edit(request: Request, ind_id: int):
+    user = need_user(request)
+    with db.db() as con:
+        ind = get_indicator(con, user, ind_id)
+    if not ind:
+        return not_found(request, user)
+    return page(request, "vlk_params.html", user, ind=dict(ind))
+
+
+@app.post(P + "/vlk/{ind_id}/edit", response_class=HTMLResponse)
+async def vlk_update(request: Request, ind_id: int):
+    user = need_user(request)
+    form = await request.form()
+    with db.db() as con:
+        old = get_indicator(con, user, ind_id)
+        if not old:
+            return not_found(request, user)
+        action = form.get("action", "save")
+        if action in ("archive", "restore"):
+            con.execute("UPDATE vlk_indicators SET archived = ?, updated = ? WHERE id = ?",
+                        (int(action == "archive"), now(), ind_id))
+            return RedirectResponse(P + "/vlk", 303)
+        ind, error = vlk.indicator_from_form(form)
+        if error:
+            return page(request, "vlk_params.html", user, ind={**ind, "id": ind_id, "archived": old["archived"]},
+                        error=error, status_code=400)
+        con.execute(f"UPDATE vlk_indicators SET {', '.join(f + ' = ?' for f in IND_FIELDS)}, updated = ? WHERE id = ?",
+                    [ind[f] for f in IND_FIELDS] + [now(), ind_id])
+    return RedirectResponse(f"{P}/vlk/{ind_id}", 303)
+
+
+@app.post(P + "/vlk/{ind_id}/add", response_class=HTMLResponse)
+async def vlk_add(request: Request, ind_id: int):
+    """Один результат контроля из формы в карточке."""
+    user = need_user(request)
+    form = await request.form()
+    with db.db() as con:
+        ind = get_indicator(con, user, ind_id)
+        if not ind:
+            return not_found(request, user)
+        row, err = vlk.row_from([form.get(k, "") for k in ("run_date", "kind", "x1", "x2", "c", "xd1", "xd2", "performer")])
+        if not err and not row["run_date"]:
+            err = "укажите дату контроля"
+        if err:
+            a = vlk.analyze(ind, ind_results(con, ind_id))
+            return page(request, "vlk_card.html", user, ind=dict(ind), a=a, today=date.today().isoformat(),
+                        form=dict(form), error="Результат не сохранён: " + err, status_code=400)
+        add_results(con, ind_id, [row])
+    return RedirectResponse(f"{P}/vlk/{ind_id}#results", 303)
+
+
+@app.post(P + "/vlk/{ind_id}/delete/{res_id}")
+def vlk_delete_result(request: Request, ind_id: int, res_id: int):
+    user = need_user(request)
+    with db.db() as con:
+        if not get_indicator(con, user, ind_id):
+            return not_found(request, user)
+        con.execute("DELETE FROM vlk_results WHERE id = ? AND indicator_id = ?", (res_id, ind_id))
+    return RedirectResponse(f"{P}/vlk/{ind_id}#results", 303)
+
+
+@app.get(P + "/vlk/{ind_id}/import", response_class=HTMLResponse)
+def vlk_import_form(request: Request, ind_id: int):
+    user = need_user(request)
+    with db.db() as con:
+        ind = get_indicator(con, user, ind_id)
+    if not ind:
+        return not_found(request, user)
+    return page(request, "vlk_import.html", user, ind=dict(ind))
+
+
+@app.post(P + "/vlk/{ind_id}/import", response_class=HTMLResponse)
+def vlk_import(request: Request, ind_id: int, text: str = Form("")):
+    user = need_user(request)
+    with db.db() as con:
+        ind = get_indicator(con, user, ind_id)
+        if not ind:
+            return not_found(request, user)
+        rows, errors = vlk.parse_paste(text)
+        if not errors and not rows:
+            errors = ["Не нашёл ни одной строки с результатом"]
+        if not errors and len(rows) > MAX_IMPORT:
+            errors = [f"За один раз — не больше {MAX_IMPORT} строк"]
+        if errors:
+            return page(request, "vlk_import.html", user, ind=dict(ind), text=text, errors=errors[:30],
+                        more=max(0, len(errors) - 30), status_code=400)
+        add_results(con, ind_id, rows)
+    return RedirectResponse(f"{P}/vlk/{ind_id}#results", 303)
 
 
 # ---------- Админка ----------

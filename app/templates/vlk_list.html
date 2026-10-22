@@ -1,0 +1,48 @@
+{% extends "base.html" %}{% block title %}ВЛК{% endblock %}
+{% block main %}
+<div class="row space">
+  <h1>Внутрилабораторный контроль{% if user.org %} — {{ user.org }}{% endif %}</h1>
+  <a class="btn" href="{{ P }}/vlk/new">+ Добавить показатель</a>
+</div>
+<p class="muted" style="margin-top:-8px">Оперативный контроль и контрольные карты Шухарта по РМГ 76-2014. Напоминания о плановом контроле и нарушениях приходят на почту.</p>
+{% if items and show != 'archive' %}
+<div class="stats">
+  <div class="stat overdue"><b>{{ totals.bad }}</b>нарушение</div>
+  <div class="stat soon"><b>{{ totals.warn }}</b>предупреждение</div>
+  <div class="stat overdue"><b>{{ totals.due }}</b>контроль просрочен</div>
+  <div class="stat"><b>{{ items|length }}</b>показателей</div>
+</div>
+{% endif %}
+<div class="tabs">
+  <a href="?" class="{{ 'on' if show != 'archive' }}">Действующие</a>
+  <a href="?show=archive" class="{{ 'on' if show == 'archive' }}">Архив</a>
+</div>
+{% if items %}
+<div class="tbl"><table>
+  <tr><th>Показатель, методика</th><th>Процедур</th><th>Последний контроль</th><th>Результаты</th><th>Следующий контроль</th></tr>
+  {% for it in items %}
+  <tr>
+    <td><a href="{{ P }}/vlk/{{ it.id }}">{{ it.name }}</a>{% if it.range_text %} <span class="muted">({{ it.range_text }}{% if it.units %} {{ it.units }}{% endif %})</span>{% endif %}
+      {% if it.method %}<br><small class="muted">{{ it.method }}</small>{% endif %}</td>
+    <td>{{ it.results|length }}</td>
+    <td>{{ it.last_date.strftime('%d.%m.%Y') if it.last_date else '—' }}</td>
+    <td><span class="st st-{{ it.status }}">{{ vlk.STATUS_NAMES[it.status] }}</span>
+      {% if it.failed %}<br><small class="muted">не удовл.: {{ it.failed }}</small>{% endif %}
+      {% if it.signals %}<br><small class="muted">сигналов на картах: {{ it.signals }}</small>{% endif %}
+      {% if it.errors %}<br><small class="muted">строк с ошибками: {{ it.errors }}</small>{% endif %}</td>
+    <td>{% if it.due_status == 'none' %}<span class="muted">периодичность не задана</span>
+      {% else %}{{ it.due.strftime('%d.%m.%Y') if it.due else '' }}
+        <span class="st st-{{ 'overdue' if it.due_status == 'overdue' else 'soon' if it.due_status == 'soon' else 'ok' }}">{{ vlk.DUE_NAMES[it.due_status] }}</span>
+        <br><small class="muted">{{ vlk.PERIODS[it.period][0] }}</small>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}
+<div class="box">{% if show == 'archive' %}<p>В архиве пусто.</p>{% else %}
+  <p><b>Показателей пока нет.</b> Показатель — это то, что вы контролируете: например, «ХПК, ПНД Ф 14.1:2:4.190, 10–80 мг/дм³».
+  Для каждого задаются нормативы методики (σr, σRл, Δ) и периодичность контроля.</p>
+  <p class="row"><a class="btn" href="{{ P }}/vlk/new">+ Добавить показатель</a>
+  <span class="muted">или загрузите файл проекта из <a href="/vlk/">калькулятора ВЛК</a> на странице добавления.</span></p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Вставить результаты — {{ ind.name }}{% endblock %}
+{% block main %}
+<div style="max-width:980px">
+  <p><a href="{{ P }}/vlk/{{ ind.id }}">← К показателю</a></p>
+  <h1>Вставить результаты контроля из Excel</h1>
+  <p class="muted">{{ ind.name }}{% if ind.method %} · {{ ind.method }}{% endif %}</p>
+  {% if errors %}<div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}{% if more %}и ещё {{ more }} ошибок<br>{% endif %}Ничего не сохранено — исправьте и вставьте снова.</div>{% endif %}
+  <div class="box">
+    <p>Выделите строки в Excel, скопируйте (Ctrl+C) и вставьте сюда (Ctrl+V). Порядок столбцов:</p>
+    <div class="tbl" style="margin-bottom:14px"><table><tr>{% for c in vlk.IMPORT_COLUMNS %}<th>{{ loop.index }}. {{ c }}</th>{% endfor %}</tr>
+      <tr><td>12.01.2026</td><td>повт</td><td>1,02</td><td>0,98</td><td></td><td></td><td></td><td>Иванова</td></tr>
+      <tr><td>19.01.2026</td><td>ок</td><td>0,51</td><td>0,49</td><td>0,50</td><td></td><td></td><td></td></tr>
+      <tr><td>26.01.2026</td><td>доб</td><td>0,80</td><td>0,82</td><td>0,50</td><td>1,29</td><td>1,33</td><td></td></tr></table></div>
+    <p class="muted"><small>Вид контроля: «повт» (повторяемость), «прец» (внутрилабораторная прецизионность), «ок» (точность с образцом
+      для контроля), «доб» (точность методом добавок) — можно полными словами. X₁, X₂ — результаты параллельных определений,
+      C — аттестованное значение ОК или величина добавки, X′₁, X′₂ — результаты пробы с добавкой. Даты — ДД.ММ.ГГГГ.
+      Строку заголовка можно не удалять. Результаты добавятся к уже введённым.</small></p>
+    <form method="post" action="{{ P }}/vlk/{{ ind.id }}/import">
+      <textarea name="text" required placeholder="Вставьте строки из Excel">{{ text or '' }}</textarea>
+      <p><button class="btn">Добавить результаты</button></p>
+    </form>
+  </div>
+</div>
+{% endblock %}

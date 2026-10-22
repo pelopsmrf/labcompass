@@ -70,6 +70,35 @@ CREATE TABLE IF NOT EXISTS equipment (
     updated TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS equipment_user ON equipment(user_id, archived);
+CREATE TABLE IF NOT EXISTS vlk_indicators (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,               -- показатель (что определяем)
+    method TEXT NOT NULL DEFAULT '',  -- методика (НД)
+    range_text TEXT NOT NULL DEFAULT '', -- диапазон измерений
+    units TEXT NOT NULL DEFAULT '',
+    sigma_r REAL,                     -- σr, %
+    sigma_rl REAL,                     -- σRл, %
+    delta REAL,                       -- Δ методики, %
+    delta_lab REAL,                   -- Δл лаборатории, %
+    use_lab INTEGER NOT NULL DEFAULT 0, -- 1 — задан Δл, 0 — Δл = 0,84·Δ
+    period TEXT NOT NULL DEFAULT '',  -- периодичность контроля (ключ vlk.PERIODS)
+    note TEXT NOT NULL DEFAULT '',
+    archived INTEGER NOT NULL DEFAULT 0,
+    created TEXT NOT NULL DEFAULT (datetime('now')),
+    updated TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS vlk_indicators_user ON vlk_indicators(user_id, archived);
+CREATE TABLE IF NOT EXISTS vlk_results (
+    id INTEGER PRIMARY KEY,
+    indicator_id INTEGER NOT NULL REFERENCES vlk_indicators(id),
+    run_date TEXT,                    -- дата контроля (ГГГГ-ММ-ДД)
+    kind TEXT NOT NULL,               -- повт, прец, ок, доб
+    x1 REAL, x2 REAL, c REAL, xd1 REAL, xd2 REAL,
+    performer TEXT NOT NULL DEFAULT '', -- исполнитель
+    created TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS vlk_results_ind ON vlk_results(indicator_id);
 CREATE TABLE IF NOT EXISTS leads (
     id INTEGER PRIMARY KEY,
     created TEXT NOT NULL DEFAULT (datetime('now')),

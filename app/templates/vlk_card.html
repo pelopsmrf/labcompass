@@ -1,0 +1,122 @@
+{% extends "base.html" %}{% block title %}{{ ind.name }} — ВЛК{% endblock %}
+{% block main %}
+{% set dl = vlk.delta_lab(vlk.params_of(ind)) %}
+<p class="noprint"><a href="{{ P }}/vlk">← К списку показателей</a></p>
+<div class="row space">
+  <h1 style="margin-bottom:4px">{{ ind.name }}{% if ind.range_text %} <span class="muted" style="font-weight:400">({{ ind.range_text }}{% if ind.units %} {{ ind.units }}{% endif %})</span>{% endif %}</h1>
+  <div class="row noprint">
+    <a class="btn ghost" href="{{ P }}/vlk/{{ ind.id }}/edit">Параметры</a>
+    <a class="btn ghost" href="{{ P }}/vlk/{{ ind.id }}/import">Вставить из Excel</a>
+    <button class="btn ghost" type="button" onclick="window.print()">Печать / PDF</button>
+  </div>
+</div>
+<p class="muted" style="margin-top:0">
+  {% if ind.method %}{{ ind.method }} · {% endif %}{% if ind.units %}{{ ind.units }} · {% endif %}
+  σr = {{ ind.sigma_r|pnum or '—' }} %, σRл = {{ ind.sigma_rl|pnum or '—' }} %,
+  Δл = {{ (dl|round(2))|pnum if dl else '—' }} %{% if dl and not ind.use_lab %} (0,84·Δ){% endif %} ·
+  контроль: {{ vlk.PERIODS[ind.period or ''][0] }}{% if user.org %} · {{ user.org }}{% endif %}
+  <span class="printonly"> · отчёт от {{ today[8:] }}.{{ today[5:7] }}.{{ today[:4] }}</span>
+</p>
+{% if ind.archived %}<div class="notice">Показатель в архиве. Вернуть можно в <a href="{{ P }}/vlk/{{ ind.id }}/edit">параметрах</a>.</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+{% if a.results %}
+  {% if a.status == 'bad' %}<div class="banner bad">✗ Последний результат не удовлетворяет нормативу или на контрольной карте есть сигнал нарушения стабильности. Требуется анализ причин и корректирующие действия.</div>
+  {% elif a.failed or a.signals %}<div class="banner warn">Последние результаты в норме, но в истории есть нарушения — см. отмеченные точки на картах.</div>
+  {% elif a.status == 'warn' %}<div class="banner warn">Последний результат за пределом предупреждения. Обратите внимание на следующие процедуры.</div>
+  {% elif a.status == 'ok' %}<div class="banner ok">✓ Все контрольные процедуры удовлетворительны, признаков нарушения стабильности нет.</div>{% endif %}
+  <div class="stats">
+    <div class="stat"><b>{{ a.results|length }}</b>контрольных процедур</div>
+    <div class="stat {{ 'overdue' if a.failed }}"><b>{{ a.failed }}</b>не удовлетворяют нормативу</div>
+    <div class="stat {{ 'overdue' if a.signals }}"><b>{{ a.signals }}</b>сигналов на картах</div>
+    <div class="stat {{ 'overdue' if a.due_status == 'overdue' else 'soon' if a.due_status == 'soon' }}">
+      <b style="font-size:20px;line-height:39px">{{ a.due.strftime('%d.%m.%Y') if a.due else ('сейчас' if a.due_status == 'overdue' else '—') }}</b>
+      {{ 'следующий контроль' if a.due_status != 'none' else 'периодичность не задана' }}{% if a.due_status == 'overdue' %} (просрочен){% endif %}</div>
+  </div>
+{% endif %}
+
+<div class="box noprint" id="add">
+  <h2 style="margin-top:0">Добавить результат контроля</h2>
+  {% set f = form or {} %}
+  <form method="post" action="{{ P }}/vlk/{{ ind.id }}/add" class="vlk-add">
+    <div><label for="run_date">Дата</label><input type="date" id="run_date" name="run_date" value="{{ f.run_date or today }}" required></div>
+    <div><label for="kind">Вид контроля</label><select id="kind" name="kind" required>
+      <option value="">— выберите —</option>
+      {% for k, v in vlk.KINDS.items() %}<option value="{{ k }}" {{ 'selected' if f.kind == k }}>{{ v }}</option>{% endfor %}</select></div>
+    {% for fld in vlk.VALUES %}<div><label for="{{ fld }}">{{ vlk.FIELD_NAMES[fld] }}</label>
+      <input type="text" inputmode="decimal" id="{{ fld }}" name="{{ fld }}" value="{{ f[fld] or '' }}" autocomplete="off"></div>{% endfor %}
+    <div><label for="performer">Исполнитель</label><input type="text" id="performer" name="performer" value="{{ f.performer or '' }}" maxlength="100"></div>
+    <div><label>&nbsp;</label><button class="btn">Добавить</button></div>
+  </form>
+  <p class="muted" style="margin:8px 0 0"><small>X₁, X₂ — параллельные определения; C — аттестованное значение ОК или величина добавки;
+    X′₁, X′₂ — результаты пробы с добавкой. Много результатов сразу — <a href="{{ P }}/vlk/{{ ind.id }}/import">вставьте из Excel</a>.</small></p>
+</div>
+
+{% for ch in a.charts %}
+<div class="box chart-block">
+  <h2 style="margin-top:0">{{ ch.title }} <span class="st st-{{ ch.status }}">{{ vlk.STATUS_NAMES[ch.status] }}</span></h2>
+  <p class="muted" style="margin-top:0"><small>Процедур: {{ ch['items']|length }} · неудовлетворительных: {{ ch.bad }} ·
+    средняя линия {{ vlk.pct(ch.lim.cl) }} %, ПП {{ '±' if ch.lim.two_sided }}{{ vlk.pct(ch.lim.warn) }} %,
+    ПД {{ '±' if ch.lim.two_sided }}{{ vlk.pct(ch.lim.action) }} %</small></p>
+  {% if ch.svg %}
+    {{ ch.svg|safe }}
+    <div class="legend"><span><i style="border-color:#555"></i>Средняя линия</span>
+      <span><i style="border-color:#d08a1a;border-top-style:dashed"></i>Предел предупреждения</span>
+      <span><i style="border-color:#b03030"></i>Предел действия</span>
+      {% if ch.bad %}<span><i class="dot"></i>Норматив не выполнен</span>{% endif %}
+      <span>◯ сигнал нарушения стабильности</span></div>
+    {% if ch.signals %}<ul class="signals">{% for n, rules in ch.signals.items() %}{% set r = ch['items'][n - 1] %}
+      <li>Точка {{ n }}{% if r.run_date %} ({{ ru(r.run_date) }}){% endif %}: {{ rules|join('; ') }}</li>{% endfor %}</ul>
+    {% else %}<p class="v-ok">✓ Признаков нарушения стабильности не выявлено.</p>{% endif %}
+  {% else %}<p class="muted">Для контрольной карты нужно не менее 3 процедур (сейчас {{ ch['items']|length }}).</p>{% endif %}
+</div>
+{% endfor %}
+
+<h2 id="results">Результаты контроля</h2>
+{% if a.results %}
+<div class="tbl"><table class="vlk-tbl">
+  <tr><th>№</th><th>Дата</th><th>Вид</th><th>X₁</th><th>X₂</th><th>C</th><th>X′₁</th><th>X′₂</th><th>Результат контроля</th><th>Норматив</th><th>Вывод</th><th>Исполнитель</th><th class="noprint"></th></tr>
+  {% for r in a.results %}
+  <tr class="{{ 'bad' if r.ok is defined and not r.ok }}">
+    <td>{{ loop.index }}</td>
+    <td>{{ ru(r.run_date) if r.run_date else '—' }}</td>
+    <td>{{ vlk.KINDS.get(r.kind, r.kind) }}{% if r.point is defined %}<br><small class="muted">точка {{ r.point }}</small>{% endif %}</td>
+    {% for fld in vlk.VALUES %}<td>{{ r[fld]|pnum }}</td>{% endfor %}
+    {% if r.error %}<td colspan="3" class="v-err">{{ r.error }}</td>
+    {% else %}
+      <td>{{ vlk.fmt(r.value) }}<br><small class="muted">{{ vlk.pct(r.rel) }} %</small></td>
+      <td>≤ {{ vlk.fmt(r.norm) }}</td>
+      <td>{% if r.ok %}<span class="v-ok">✓ удовл.</span>{% else %}<span class="v-bad">✗ не удовл.</span>{% endif %}
+        {% if r.signals %}<br><small class="v-bad">◯ {{ r.signals|join('; ') }}</small>{% endif %}</td>
+    {% endif %}
+    <td>{{ r.performer }}</td>
+    <td class="noprint"><form method="post" action="{{ P }}/vlk/{{ ind.id }}/delete/{{ r.id }}" onsubmit="return confirm('Удалить этот результат?')">
+      <button class="link del" title="Удалить результат" aria-label="Удалить результат">✕</button></form></td>
+  </tr>
+  {% endfor %}
+</table></div>
+<p class="muted"><small>Результат контроля: rк = |X₁ − X₂| (повторяемость), Rл,к (прецизионность), Кк = |X̄ − C| (ОК), Кк = |X̄′ − X̄ − C| (добавки).
+  Нормативы и пределы карт — по РМГ 76-2014 для двух параллельных определений.</small></p>
+{% else %}
+<div class="box"><p>Результатов пока нет. Добавьте первый результат в форме выше или <a href="{{ P }}/vlk/{{ ind.id }}/import">вставьте из Excel</a>.</p></div>
+{% endif %}
+
+<script>
+// Поля, которые не нужны для выбранного вида контроля, отключаем — как в калькуляторе
+(function () {
+  const fields = {{ vlk.FIELDS|tojson }};
+  const kind = document.getElementById("kind");
+  function update() {
+    const allowed = fields[kind.value] || {{ vlk.VALUES|tojson }};
+    {{ vlk.VALUES|tojson }}.forEach((f) => {
+      const el = document.getElementById(f);
+      el.disabled = !allowed.includes(f);
+      el.placeholder = el.disabled ? "—" : "";
+      if (el.disabled) el.value = "";
+    });
+  }
+  kind.addEventListener("change", update);
+  update();
+})();
+</script>
+{% endblock %}
