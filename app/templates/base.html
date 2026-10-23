@@ -19,6 +19,8 @@
       {% if user %}
         <a href="{{ P }}/equipment">Оборудование</a>
         <a href="{{ P }}/vlk">ВЛК</a>
+        <a href="{{ P }}/stock">Реактивы и СО</a>
+        <a href="{{ P }}/solutions">Растворы</a>
         <a href="/check/">Самопроверка</a>
         {% if user.is_admin %}<a href="{{ P }}/admin/leads">Заявки</a><a href="{{ P }}/admin">Админка</a>{% endif %}
         <a href="{{ P }}/profile" title="Профиль">{{ user.org or user.email }}</a>

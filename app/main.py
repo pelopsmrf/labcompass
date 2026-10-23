@@ -17,6 +17,7 @@ import db
 import equipment as eq
 import leads
 import mailer
+import stock
 import vlk
 
 P = "/app"  # приложение живёт по адресу labcompass.ru/app/
@@ -26,7 +27,7 @@ CODE_MINUTES = 10
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.mount(P + "/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
-templates.env.globals.update(P=P, eq=eq, vlk=vlk, ru=eq.ru, FREE_LIMIT=db.FREE_LIMIT,
+templates.env.globals.update(P=P, eq=eq, vlk=vlk, stock=stock, ru=eq.ru, FREE_LIMIT=db.FREE_LIMIT,
                              OPERATOR=os.environ.get("OPERATOR") or "владелец сайта labcompass.ru")
 # Версия оформления в адресе: после обновления браузер не возьмёт старый app.css из кэша
 templates.env.globals["CSS_V"] = hashlib.md5((Path(__file__).parent / "static" / "app.css").read_bytes()).hexdigest()[:8]
@@ -593,6 +594,233 @@ def vlk_import(request: Request, ind_id: int, text: str = Form("")):
                         more=max(0, len(errors) - 30), status_code=400)
         add_results(con, ind_id, rows)
     return RedirectResponse(f"{P}/vlk/{ind_id}#results", 303)
+
+
+# ---------- Реактивы и СО ----------
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def get_stock(con, user, item_id):
+    return con.execute("SELECT * FROM stock WHERE id = ? AND user_id = ?", (item_id, user["id"])).fetchone()
+
+
+def stock_rows(con, user, archived=0):
+    return con.execute("SELECT * FROM stock WHERE user_id = ? AND archived = ? "
+                       "ORDER BY COALESCE(ext_until, expiry_date) IS NULL, COALESCE(ext_until, expiry_date), name",
+                       (user["id"], archived)).fetchall()
+
+
+def stock_not_found(request, user):
+    return page(request, "message.html", user, text="Запись не найдена", status_code=404,
+                back=(P + "/stock", "← К реактивам и СО"))
+
+
+@app.get(P + "/stock", response_class=HTMLResponse)
+def stock_list(request: Request, show: str = "", kind: str = "", q: str = ""):
+    user = need_user(request)
+    with db.db() as con:
+        items = stock.with_status(stock_rows(con, user, int(show == "archive")))
+    if kind in stock.KINDS:
+        items = [i for i in items if i["kind"] == kind]
+    totals = {s: sum(1 for i in items if i["status"] == s) for s in stock.STATUS_NAMES}
+    if show in stock.STATUS_NAMES:
+        items = [i for i in items if i["status"] == show]
+    if q:
+        ql = q.lower()
+        items = [i for i in items if ql in " ".join((i["name"], i["standard"], i["lot"], i["maker"], i["place"])).lower()]
+    return page(request, "stock_list.html", user, items=items, totals=totals, show=show, kind=kind, q=q)
+
+
+@app.get(P + "/stock/new", response_class=HTMLResponse)
+def stock_new(request: Request, kind: str = ""):
+    user = need_user(request)
+    return page(request, "stock_item.html", user, item={"kind": kind if kind in stock.KINDS else "реактив",
+                                                        "received_date": date.today().isoformat()})
+
+
+@app.post(P + "/stock/new", response_class=HTMLResponse)
+async def stock_create(request: Request):
+    user = need_user(request)
+    it, error = stock.item_from_form(await request.form())
+    if error:
+        return page(request, "stock_item.html", user, item=it, error=error, status_code=400)
+    with db.db() as con:
+        con.execute(f"INSERT INTO stock (user_id, {', '.join(stock.FIELDS)}) VALUES (?{', ?' * len(stock.FIELDS)})",
+                    [user["id"]] + [it[f] for f in stock.FIELDS])
+    return RedirectResponse(P + "/stock", 303)
+
+
+@app.get(P + "/stock/import", response_class=HTMLResponse)
+def stock_import_form(request: Request):
+    user = need_user(request)
+    return page(request, "stock_import.html", user)
+
+
+@app.post(P + "/stock/import", response_class=HTMLResponse)
+def stock_import(request: Request, text: str = Form("")):
+    user = need_user(request)
+    items, errors = stock.parse_paste(text)
+    if not errors and not items:
+        errors = ["Не нашёл ни одной строки с наименованием"]
+    if not errors and len(items) > MAX_IMPORT:
+        errors = [f"За один раз — не больше {MAX_IMPORT} строк"]
+    if errors:
+        return page(request, "stock_import.html", user, text=text, errors=errors[:30], status_code=400)
+    cols = list(items[0])
+    with db.db() as con:
+        con.executemany(f"INSERT INTO stock (user_id, {', '.join(cols)}) VALUES (?{', ?' * len(cols)})",
+                        [[user["id"]] + [i[c] for c in cols] for i in items])
+    return RedirectResponse(P + "/stock", 303)
+
+
+@app.get(P + "/stock.xlsx")
+def stock_xlsx(request: Request):
+    user = need_user(request)
+    with db.db() as con:
+        items = stock.with_status(stock_rows(con, user))
+    return Response(stock.stock_xlsx(items, user["org"]), media_type=XLSX,
+                    headers={"Content-Disposition": f'attachment; filename="reaktivy-{date.today().isoformat()}.xlsx"'})
+
+
+@app.get(P + "/stock/{item_id}", response_class=HTMLResponse)
+def stock_edit(request: Request, item_id: int):
+    user = need_user(request)
+    with db.db() as con:
+        it = get_stock(con, user, item_id)
+        if not it:
+            return stock_not_found(request, user)
+        used = con.execute("SELECT * FROM solutions WHERE source_id = ? ORDER BY prep_date DESC, id DESC LIMIT 20",
+                           (item_id,)).fetchall()
+    return page(request, "stock_item.html", user, item=dict(it), used=used)
+
+
+@app.post(P + "/stock/{item_id}", response_class=HTMLResponse)
+async def stock_update(request: Request, item_id: int):
+    user = need_user(request)
+    form = await request.form()
+    with db.db() as con:
+        old = get_stock(con, user, item_id)
+        if not old:
+            return stock_not_found(request, user)
+        action = form.get("action", "save")
+        if action in ("archive", "restore"):
+            con.execute("UPDATE stock SET archived = ?, updated = ? WHERE id = ?", (int(action == "archive"), now(), item_id))
+            return RedirectResponse(P + "/stock", 303)
+        it, error = stock.item_from_form(form)
+        if error:
+            return page(request, "stock_item.html", user, item={**it, "id": item_id, "archived": old["archived"]},
+                        error=error, status_code=400)
+        con.execute(f"UPDATE stock SET {', '.join(f + ' = ?' for f in stock.FIELDS)}, updated = ? WHERE id = ?",
+                    [it[f] for f in stock.FIELDS] + [now(), item_id])
+    return RedirectResponse(P + "/stock", 303)
+
+
+# ---------- Журнал приготовления растворов ----------
+
+def stock_sources(con, user):
+    """Все записи склада лаборатории (и списанные — на них ссылаются старые записи журнала)."""
+    return {r["id"]: dict(r) for r in con.execute("SELECT * FROM stock WHERE user_id = ?", (user["id"],))}
+
+
+def get_solution(con, user, sol_id):
+    return con.execute("SELECT * FROM solutions WHERE id = ? AND user_id = ?", (sol_id, user["id"])).fetchone()
+
+
+def solution_page(request, user, con, sol, error=None, status_code=200):
+    sources = stock_sources(con, user)
+    active = sorted((s for s in sources.values() if not s["archived"] or s["id"] == sol.get("source_id")),
+                    key=lambda s: (s["kind"] != "СО", s["name"].lower()))
+    for s in active:
+        s["until"] = stock.valid_until(s)
+    return page(request, "solution.html", user, sol=sol, sources=active, error=error, status_code=status_code,
+                today=date.today().isoformat())
+
+
+@app.get(P + "/solutions", response_class=HTMLResponse)
+def solutions_list(request: Request, show: str = "", q: str = ""):
+    user = need_user(request)
+    with db.db() as con:
+        rows = con.execute("SELECT * FROM solutions WHERE user_id = ? ORDER BY prep_date DESC, id DESC",
+                           (user["id"],)).fetchall()
+        items = stock.solutions_with_status(rows, stock_sources(con, user))
+    totals = {s: sum(1 for i in items if i["status"] == s) for s in ("ok", "soon", "overdue")}
+    if show == "all":
+        pass
+    elif show in stock.SOLUTION_STATUS:
+        items = [i for i in items if i["status"] == show]
+    else:  # по умолчанию — действующие: годные и истекающие
+        items = [i for i in items if i["status"] in ("ok", "soon", "none")]
+    if q:
+        ql = q.lower()
+        items = [i for i in items if ql in " ".join((i["name"], i["conc"], i["source_label"], i["method"], i["performer"])).lower()]
+    return page(request, "solutions.html", user, items=items, totals=totals, show=show, q=q,
+                today=date.today().isoformat())
+
+
+@app.get(P + "/solutions/new", response_class=HTMLResponse)
+def solution_new(request: Request, source: int = 0, copy: int = 0):
+    """Новая запись. source — сразу выбрать реактив/СО; copy — взять всё из прошлой записи (новая дата)."""
+    user = need_user(request)
+    with db.db() as con:
+        sol = {"prep_date": date.today().isoformat(), "source_id": source or None}
+        old = get_solution(con, user, copy) if copy else None
+        if old:
+            sol = {**dict(old), "id": None, "prep_date": date.today().isoformat(), "expiry_date": None}
+        return solution_page(request, user, con, sol)
+
+
+@app.post(P + "/solutions/new", response_class=HTMLResponse)
+async def solution_create(request: Request):
+    user = need_user(request)
+    form = await request.form()
+    with db.db() as con:
+        it, error = stock.solution_from_form(form, stock_sources(con, user))
+        if error:
+            return solution_page(request, user, con, it, error, 400)
+        con.execute(f"INSERT INTO solutions (user_id, {', '.join(stock.SOLUTION_FIELDS)}) "
+                    f"VALUES (?{', ?' * len(stock.SOLUTION_FIELDS)})", [user["id"]] + [it[f] for f in stock.SOLUTION_FIELDS])
+    return RedirectResponse(P + "/solutions", 303)
+
+
+@app.get(P + "/solutions.xlsx")
+def solutions_xlsx(request: Request):
+    user = need_user(request)
+    with db.db() as con:
+        rows = con.execute("SELECT * FROM solutions WHERE user_id = ? ORDER BY prep_date, id", (user["id"],)).fetchall()
+        items = stock.solutions_with_status(rows, stock_sources(con, user))
+    return Response(stock.solutions_xlsx(items, user["org"]), media_type=XLSX,
+                    headers={"Content-Disposition": f'attachment; filename="zhurnal-rastvorov-{date.today().isoformat()}.xlsx"'})
+
+
+@app.get(P + "/solutions/{sol_id}", response_class=HTMLResponse)
+def solution_edit(request: Request, sol_id: int):
+    user = need_user(request)
+    with db.db() as con:
+        sol = get_solution(con, user, sol_id)
+        if not sol:
+            return page(request, "message.html", user, text="Запись не найдена", status_code=404,
+                        back=(P + "/solutions", "← К журналу растворов"))
+        return solution_page(request, user, con, dict(sol))
+
+
+@app.post(P + "/solutions/{sol_id}", response_class=HTMLResponse)
+async def solution_update(request: Request, sol_id: int):
+    user = need_user(request)
+    form = await request.form()
+    with db.db() as con:
+        if not get_solution(con, user, sol_id):
+            return page(request, "message.html", user, text="Запись не найдена", status_code=404,
+                        back=(P + "/solutions", "← К журналу растворов"))
+        if form.get("action") == "delete":
+            con.execute("DELETE FROM solutions WHERE id = ?", (sol_id,))
+            return RedirectResponse(P + "/solutions", 303)
+        it, error = stock.solution_from_form(form, stock_sources(con, user))
+        if error:
+            return solution_page(request, user, con, {**it, "id": sol_id}, error, 400)
+        con.execute(f"UPDATE solutions SET {', '.join(f + ' = ?' for f in stock.SOLUTION_FIELDS)} WHERE id = ?",
+                    [it[f] for f in stock.SOLUTION_FIELDS] + [sol_id])
+    return RedirectResponse(P + "/solutions", 303)
 
 
 # ---------- Админка ----------

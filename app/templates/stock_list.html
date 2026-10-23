@@ -1,0 +1,58 @@
+{% extends "base.html" %}{% block title %}Реактивы и СО{% endblock %}
+{% block main %}
+<div class="row space">
+  <h1>Реактивы и стандартные образцы{% if user.org %} — {{ user.org }}{% endif %}</h1>
+  <div class="row">
+    <a class="btn" href="{{ P }}/stock/new">+ Добавить</a>
+    <a class="btn ghost" href="{{ P }}/stock/import">Вставить из Excel</a>
+    <a class="btn ghost" href="{{ P }}/stock.xlsx">Список в Excel</a>
+    <a class="btn ghost" href="{{ P }}/solutions">Журнал растворов</a>
+  </div>
+</div>
+<div class="stats">
+  <a class="stat overdue" href="?show=overdue&kind={{ kind }}"><b>{{ totals.overdue }}</b>просрочено</a>
+  <a class="stat soon" href="?show=soon&kind={{ kind }}"><b>{{ totals.soon }}</b>срок в ближайшие {{ stock.SOON_DAYS }} дней</a>
+  <a class="stat ok" href="?show=ok&kind={{ kind }}"><b>{{ totals.ok }}</b>годны</a>
+  <a class="stat" href="?show=none&kind={{ kind }}"><b>{{ totals.none }}</b>срок не указан</a>
+</div>
+<div class="row space" style="margin-bottom:12px">
+  <div>
+    <div class="tabs" style="margin:0 0 8px">
+      <a href="?show={{ show }}" class="{{ 'on' if not kind }}">Все</a>
+      <a href="?show={{ show }}&kind=реактив" class="{{ 'on' if kind == 'реактив' }}">Реактивы</a>
+      <a href="?show={{ show }}&kind=СО" class="{{ 'on' if kind == 'СО' }}">Стандартные образцы</a>
+      <a href="?show={{ show }}&kind=другое" class="{{ 'on' if kind == 'другое' }}">Другое</a>
+    </div>
+    <div class="tabs" style="margin:0">
+      <a href="?kind={{ kind }}" class="{{ 'on' if not show }}">Любой срок</a>
+      {% for k, v in stock.STATUS_NAMES.items() %}<a href="?show={{ k }}&kind={{ kind }}" class="{{ 'on' if show == k }}">{{ v }}</a>{% endfor %}
+      <a href="?show=archive&kind={{ kind }}" class="{{ 'on' if show == 'archive' }}">Израсходованы / списаны</a>
+    </div>
+  </div>
+  <form method="get" class="row"><input type="hidden" name="show" value="{{ show }}"><input type="hidden" name="kind" value="{{ kind }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="Поиск: название, ГОСТ, партия" style="width:260px"></form>
+</div>
+{% if items %}
+<div class="tbl"><table>
+  <tr><th>Наименование</th><th>Вид</th><th>ГОСТ / ТУ / № ГСО, партия</th><th>Количество, место</th><th>Годен до</th><th>Статус</th><th></th></tr>
+  {% for it in items %}
+  <tr>
+    <td><a href="{{ P }}/stock/{{ it.id }}">{{ it.name }}</a>{% if it.grade %} <span class="muted">{{ it.grade }}</span>{% endif %}
+      {% if it.cert_value %}<br><small class="muted">{{ it.cert_value }}</small>{% endif %}
+      {% if it.maker %}<br><small class="muted">{{ it.maker }}</small>{% endif %}</td>
+    <td>{{ it.kind }}</td>
+    <td>{{ it.standard }}{% if it.lot %}<br><small class="muted">партия {{ it.lot }}</small>{% endif %}</td>
+    <td>{{ it.qty }}{% if it.place %}<br><small class="muted">{{ it.place }}</small>{% endif %}
+      {% if it.opened_date %}<br><small class="muted">вскрыт {{ ru(it.opened_date) }}</small>{% endif %}</td>
+    <td>{{ ru(it.until) }}{% if it.ext_until %}<br><small class="muted">продлён, {{ it.ext_doc }}</small>{% endif %}</td>
+    <td><span class="st st-{{ it.status }}">{{ stock.STATUS_NAMES[it.status] }}</span>
+      {% if it.days_left is not none %}<br><small class="muted">{% if it.days_left < 0 %}{{ -it.days_left }} дн. назад{% else %}через {{ it.days_left }} дн.{% endif %}</small>{% endif %}</td>
+    <td>{% if show != 'archive' %}<a class="btn small ghost" href="{{ P }}/solutions/new?source={{ it.id }}" title="Записать в журнал раствор, приготовленный из этого реактива или СО">Приготовить раствор</a>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}
+<div class="box"><p>{% if show or q or kind %}Ничего не найдено.{% else %}Реактивов и стандартных образцов пока нет.
+  <a href="{{ P }}/stock/new">Добавьте первую позицию</a> или <a href="{{ P }}/stock/import">вставьте список из Excel</a>.{% endif %}</p></div>
+{% endif %}
+{% endblock %}

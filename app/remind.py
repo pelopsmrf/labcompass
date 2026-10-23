@@ -3,7 +3,9 @@
 Письмо уходит, если у лаборатории:
 - есть оборудование, до срока которого ровно 30 или 7 дней, или срок наступает сегодня;
 - есть показатель ВЛК, до планового контроля которого ровно 7 дней, или контроль сегодня;
-- за последние сутки внесён результат ВЛК, который не выполняет норматив или дал сигнал на контрольной карте.
+- за последние сутки внесён результат ВЛК, который не выполняет норматив или дал сигнал на контрольной карте;
+- есть реактив или стандартный образец, до конца срока годности которого ровно 30 или 7 дней, или срок сегодня.
+По растворам писем нет — их сроки видны на экране.
 В письме — весь список просроченного и того, что скоро, и все новые нарушения.
 """
 import sys
@@ -12,6 +14,7 @@ from datetime import date, datetime, timedelta
 import db
 import equipment as eq
 import mailer
+import stock
 import vlk
 
 TRIGGER_DAYS = {30, 7, 0}
@@ -37,7 +40,14 @@ def vlk_state(con, user, today, since):
     return due, problems, trigger
 
 
-def letter(user, items, due=(), problems=()):
+def stock_state(con, user, today):
+    """Реактивы и СО: (просрочено или скоро, есть ли повод для письма)."""
+    rows = con.execute("SELECT * FROM stock WHERE user_id = ? AND archived = 0", (user["id"],)).fetchall()
+    items = sorted((i for i in stock.with_status(rows, today) if i["status"] in ("overdue", "soon")), key=lambda i: i["until"])
+    return items, any(i["days_left"] in TRIGGER_DAYS for i in items)
+
+
+def letter(user, items, due=(), problems=(), reagents=()):
     org = " — " + user["org"] if user["org"] else ""
     lines = ["Здравствуйте!\n"]
     if items:
@@ -66,11 +76,20 @@ def letter(user, items, due=(), problems=()):
         lines.append("")
     if due or problems:
         lines.append(f"Показатели ВЛК: {db.BASE_URL}/app/vlk\n")
+    if reagents:
+        lines.append("Реактивы и стандартные образцы — срок годности:")
+        for title, st in (("Просрочено", "overdue"), (f"В ближайшие {stock.SOON_DAYS} дней", "soon")):
+            part = [i for i in reagents if i["status"] == st]
+            if part:
+                lines.append(title + ":")
+                lines += [f"  • {i['name']}{' ' + i['grade'] if i['grade'] else ''}"
+                          f"{', партия ' + i['lot'] if i['lot'] else ''} — годен до {eq.ru(i['until'])}" for i in part]
+        lines.append(f"Список: {db.BASE_URL}/app/stock\n")
     lines.append("Отключить напоминания можно в профиле кабинета.\n— ЛабКомпас")
     return "\n".join(lines)
 
 
-def subject(items, due, problems):
+def subject(items, due, problems, reagents=()):
     parts = []
     if items:
         n = sum(1 for i in items if i["status"] == "overdue")
@@ -79,6 +98,8 @@ def subject(items, due, problems):
         parts.append("нарушения ВЛК")
     elif due:
         parts.append("плановый контроль ВЛК")
+    if reagents:
+        parts.append("сроки годности реактивов и СО")
     return "ЛабКомпас: " + "; ".join(parts)
 
 
@@ -93,10 +114,12 @@ def run(today=None):
                                "AND service != 'не требуется' ORDER BY next_date", (user["id"],)).fetchall()
             items = [i for i in eq.with_status(rows, today) if i["status"] in ("overdue", "soon")]
             due, problems, vlk_trigger = vlk_state(con, user, today, since)
-            if not (any(i["days_left"] in TRIGGER_DAYS for i in items) or vlk_trigger):
+            reagents, stock_trigger = stock_state(con, user, today)
+            if not (any(i["days_left"] in TRIGGER_DAYS for i in items) or vlk_trigger or stock_trigger):
                 continue
             try:
-                mailer.send(user["email"], subject(items, due, problems), letter(user, items, due, problems))
+                mailer.send(user["email"], subject(items, due, problems, reagents),
+                            letter(user, items, due, problems, reagents))
                 sent += 1
             except Exception as e:  # одна ошибка почты не должна останавливать остальных
                 print(f"Не отправлено {user['email']}: {e}", file=sys.stderr)

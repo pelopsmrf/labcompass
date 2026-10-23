@@ -20,6 +20,7 @@ import equipment as eq  # noqa: E402
 import mailer  # noqa: E402
 import main  # noqa: E402
 import remind  # noqa: E402
+import stock  # noqa: E402
 import vlk  # noqa: E402
 
 EXAMPLE = Path(__file__).parent.parent / "vlk_calc" / "example.csv"
@@ -156,6 +157,42 @@ class TestVlk(unittest.TestCase):
         ind, rows, errors = vlk.parse_project(json.dumps(data))
         self.assertEqual((ind["sigma_rl"], len(rows), errors), (6.5, 1, []))
         self.assertTrue(vlk.parse_project("не json")[2])
+
+
+class TestStock(unittest.TestCase):
+    def test_item_and_status(self):
+        it, err = stock.item_from_form({"name": "Аммоний хлористый", "made_date": "15.03.2025", "shelf_months": "3 года"})
+        self.assertIsNone(err)
+        self.assertEqual(it["expiry_date"], "2028-03-15")
+        _, err = stock.item_from_form({"name": "X", "ext_until": "2027-01-01"})
+        self.assertIn("основание", err)
+        t = date(2026, 10, 23)
+        rows = [{"expiry_date": "2026-10-01", "ext_until": "2027-04-01"}, {"expiry_date": "2026-11-10", "ext_until": None},
+                {"expiry_date": None, "ext_until": None}]
+        self.assertEqual([i["status"] for i in stock.with_status(rows, t)], ["ok", "soon", "none"])
+        self.assertEqual(stock.norm_kind("ГСО"), "СО")
+
+    def test_paste(self):
+        items, errors = stock.parse_paste("Наименование\tВид\n"
+                                          "Аммоний хлористый\tреактив\tхч\tГОСТ 3773-72\t\t125\t\t15.03.2028\t500 г\n"
+                                          "ГСО аммония\tгсо\t\tГСО 7015-93\t\t42\t\t01.06.2027\t3 ампулы\t\t1,00 ± 0,01 мг/см³\n"
+                                          "Плохая\tреактив\t\t\t\t\t\t31.02.2027\n")
+        self.assertEqual(len(items), 2)
+        self.assertEqual((items[1]["kind"], items[1]["cert_value"]), ("СО", "1,00 ± 0,01 мг/см³"))
+        self.assertEqual(len(errors), 1)
+
+    def test_solution(self):
+        src = {1: {"id": 1, "kind": "СО", "name": "ГСО", "grade": "", "standard": "ГСО 7015-93", "lot": "42",
+                   "expiry_date": "2026-10-01", "ext_until": None}}
+        it, err = stock.solution_from_form({"name": "Рабочий", "prep_date": "2026-10-20", "shelf_days": "7",
+                                            "source_id": "1"}, src)
+        self.assertEqual((err, it["expiry_date"], it["source_id"]), (None, "2026-10-27", 1))
+        self.assertEqual(stock.solution_from_form({"name": "Р", "prep_date": "2026-10-20", "source_id": "99"}, src)[0]["source_id"], None)
+        self.assertIn("дату", stock.solution_from_form({"name": "Р"}, src)[1])
+        s = stock.solutions_with_status([{**it, "id": 5}], src, date(2026, 10, 26))[0]
+        self.assertEqual(s["status"], "soon")
+        self.assertIn("просрочен", s["problem"])
+        self.assertIn("партия 42", s["source_label"])
 
 
 class TestApp(unittest.TestCase):
@@ -347,6 +384,74 @@ class TestApp(unittest.TestCase):
         self.c.post(url + "/edit", data={"action": "archive"})
         self.assertNotIn("Аммоний-ион", self.c.get("/app/vlk").text)
         self.assertIn("Аммоний-ион", self.c.get("/app/vlk?show=archive").text)
+
+    def test_stock(self):
+        r = self.c.get("/app/stock", follow_redirects=False)
+        self.assertEqual(r.headers["location"], "/app/login")
+        login(self.c, "chem@lab.ru")
+        self.c.post("/app/profile", data={"org": "ИЛ Химия", "remind": "1"})
+        soon = (date.today() + timedelta(days=7)).isoformat()
+        old = (date.today() - timedelta(days=10)).isoformat()
+        r = self.c.post("/app/stock/new", data={"kind": "реактив", "name": "Аммоний хлористый", "grade": "хч",
+                                                "lot": "125", "expiry_date": soon, "qty": "500 г"})
+        self.assertIn("Аммоний хлористый", r.text)
+        self.assertIn("Скоро срок", r.text)
+        r = self.c.post("/app/stock/new", data={"kind": "СО", "name": "ГСО аммония", "standard": "ГСО 7015-93",
+                                                "lot": "42", "expiry_date": old, "cert_value": "1,00 ± 0,01 мг/см³"})
+        self.assertIn("Просрочен", r.text)
+        r = self.c.post("/app/stock/new", data={"name": ""})
+        self.assertEqual(r.status_code, 400)
+        r = self.c.post("/app/stock/import", data={"text": "Нитрат калия\tреактив\tчда\t\t\t7\t\t01.01.2030\t1 кг"})
+        self.assertIn("Нитрат калия", r.text)
+        self.assertIn("Нитрат", self.c.get("/app/stock?kind=реактив").text)
+        self.assertNotIn("Нитрат", self.c.get("/app/stock?kind=СО").text)
+        self.assertEqual(self.c.get("/app/stock.xlsx").content[:2], b"PK")
+        con = main.db.connect()
+        ids = {r["name"]: r["id"] for r in con.execute(
+            "SELECT s.id, s.name FROM stock s JOIN users u ON u.id = s.user_id WHERE u.email='chem@lab.ru'")}
+        gso = ids["ГСО аммония"]
+        # раствор из просроченного ГСО — сохраняется с отметкой
+        r = self.c.get(f"/app/solutions/new?source={gso}")
+        self.assertIn('selected', r.text)
+        r = self.c.post("/app/solutions/new", data={"name": "Основной раствор аммония", "conc": "0,1 мг/см³",
+                                                    "source_id": str(gso), "prep_date": date.today().isoformat(),
+                                                    "shelf_days": "30", "performer": "Иванова"})
+        self.assertIn("Основной раствор аммония", r.text)
+        self.assertIn("на дату приготовления был просрочен", r.text)
+        r = self.c.post("/app/solutions/new", data={"name": "Старый", "prep_date": old, "shelf_days": "3"})
+        self.assertNotIn("Старый", r.text)  # просрочен — не в «действующих»
+        self.assertIn("Старый", self.c.get("/app/solutions?show=overdue").text)
+        self.assertEqual(self.c.get("/app/solutions.xlsx").content[:2], b"PK")
+        sid = con.execute("SELECT id FROM solutions WHERE name = 'Старый'").fetchone()[0]
+        r = self.c.get(f"/app/solutions/new?copy={sid}")
+        self.assertIn('value="Старый"', r.text)
+        self.c.post(f"/app/solutions/{sid}", data={"action": "delete"})
+        self.assertNotIn("Старый", self.c.get("/app/solutions?show=all").text)
+        self.assertIn("Основной раствор", self.c.get(f"/app/stock/{gso}").text)  # «растворы из этой позиции»
+        # продление срока ГСО по протоколу
+        r = self.c.post(f"/app/stock/{gso}", data={"kind": "СО", "name": "ГСО аммония", "ext_until": soon})
+        self.assertIn("основание", r.text)
+        self.c.post(f"/app/stock/{gso}", data={"kind": "СО", "name": "ГСО аммония", "expiry_date": old,
+                                              "ext_until": soon, "ext_doc": "Протокол № 12"})
+        self.assertIn("продлён, Протокол № 12", self.c.get("/app/stock").text)
+        # письмо: реактив и ГСО — за 7 дней
+        mailer.sent.clear()
+        remind.run()
+        msg = [m for m in mailer.sent if m["To"] == "chem@lab.ru"][-1]
+        self.assertIn("реактивов и СО", msg["Subject"])
+        self.assertIn("Аммоний хлористый хч, партия 125", msg.get_content())
+        # чужой кабинет не видит, не может сослаться на чужой реактив
+        other = TestClient(main.app, base_url="http://testserver")
+        login(other, "spy3@lab.ru")
+        self.assertEqual(other.get(f"/app/stock/{gso}").status_code, 404)
+        self.assertNotIn("ГСО аммония", other.get(f"/app/solutions/new?source={gso}").text)
+        other.post("/app/solutions/new", data={"name": "Чужой", "source_id": str(gso), "prep_date": "2026-10-01"})
+        self.assertIsNone(con.execute("SELECT source_id FROM solutions WHERE name = 'Чужой'").fetchone()[0])
+        self.assertEqual(other.post(f"/app/solutions/{sid + 100}", data={"action": "delete"}).status_code, 404)
+        # списание
+        self.c.post(f"/app/stock/{ids['Нитрат калия']}", data={"action": "archive"})
+        self.assertNotIn("Нитрат", self.c.get("/app/stock").text)
+        self.assertIn("Нитрат", self.c.get("/app/stock?show=archive").text)
 
     def test_foreign_origin(self):
         r = self.c.post("/app/login", data={"email": "x@lab.ru", "consent": "1"},

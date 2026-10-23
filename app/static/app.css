@@ -55,9 +55,10 @@ th { background: var(--blue-soft); font-size: 13px; white-space: nowrap; }
 .st-soon { background: #fbe8c8; color: #8a5609; }
 .st-ok { background: #dcefe0; color: var(--ok); }
 .st-none { background: var(--alt); color: var(--muted); }
+.st.wrap { white-space: normal; border-radius: 8px; }
 details.done summary { cursor: pointer; color: var(--blue); font-size: 13px; }
 details.done form { display: grid; gap: 6px; margin-top: 6px; min-width: 170px; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 18px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 14px 0 18px; }
 .stat { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; text-decoration: none; color: var(--ink); }
 .stat b { display: block; font-size: 26px; }
 .stat.overdue b { color: var(--bad); } .stat.soon b { color: var(--warn); } .stat.ok b { color: var(--ok); }

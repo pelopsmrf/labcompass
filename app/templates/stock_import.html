@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block title %}Вставить из Excel — реактивы и СО{% endblock %}
+{% block main %}
+<div style="max-width:1100px">
+  <p><a href="{{ P }}/stock">← К списку</a></p>
+  <h1>Вставить список реактивов и СО из Excel</h1>
+  {% if errors %}<div class="error">{% for e in errors %}{{ e }}<br>{% endfor %}Ничего не сохранено — исправьте и вставьте снова.</div>{% endif %}
+  <div class="box">
+    <p>Выделите строки в Excel, скопируйте (Ctrl+C) и вставьте сюда (Ctrl+V). Порядок столбцов:</p>
+    <div class="tbl" style="margin-bottom:14px"><table><tr>{% for c in stock.IMPORT_COLUMNS %}<th>{{ loop.index }}. {{ c }}</th>{% endfor %}</tr>
+      <tr><td>Аммоний хлористый</td><td>реактив</td><td>хч</td><td>ГОСТ 3773-72</td><td>АО «ЛенРеактив»</td><td>125</td><td>15.03.2025</td><td>15.03.2028</td><td>500 г</td><td>Шкаф 2</td><td></td></tr>
+      <tr><td>ГСО ионов аммония</td><td>СО</td><td></td><td>ГСО 7015-93</td><td>ООО «ЭКОСТАНДАРТ»</td><td>42</td><td></td><td>01.06.2027</td><td>3 ампулы</td><td>Холодильник</td><td>1,00 ± 0,01 мг/см³</td></tr></table></div>
+    <p class="muted"><small>Строку заголовка можно не удалять. Даты — ДД.ММ.ГГГГ. Вид: «реактив», «СО» (или ГСО), «другое». Пустые столбцы допустимы.</small></p>
+    <form method="post" action="{{ P }}/stock/import">
+      <textarea name="text" required placeholder="Вставьте строки из Excel">{{ text or '' }}</textarea>
+      <p><button class="btn">Добавить в список</button></p>
+    </form>
+  </div>
+</div>
+{% endblock %}

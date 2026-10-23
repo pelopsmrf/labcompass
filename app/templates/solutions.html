@@ -1,0 +1,49 @@
+{% extends "base.html" %}{% block title %}Журнал растворов{% endblock %}
+{% block main %}
+<div class="row space">
+  <h1>Журнал приготовления растворов{% if user.org %} — {{ user.org }}{% endif %}</h1>
+  <div class="row noprint">
+    <a class="btn" href="{{ P }}/solutions/new">+ Записать раствор</a>
+    <a class="btn ghost" href="{{ P }}/solutions.xlsx">Журнал в Excel</a>
+    <button class="btn ghost" type="button" onclick="window.print()">Печать</button>
+    <a class="btn ghost" href="{{ P }}/stock">Реактивы и СО</a>
+  </div>
+</div>
+<div class="stats noprint">
+  <a class="stat ok" href="?show=ok"><b>{{ totals.ok }}</b>годны</a>
+  <a class="stat soon" href="?show=soon"><b>{{ totals.soon }}</b>истекают (сегодня–{{ stock.SOLUTION_SOON_DAYS }} дн.)</a>
+  <a class="stat overdue" href="?show=overdue"><b>{{ totals.overdue }}</b>просрочены</a>
+  <a class="stat" href="?show=all"><b>{{ totals.ok + totals.soon + totals.overdue }}</b>с указанным сроком</a>
+</div>
+<div class="row space noprint" style="margin-bottom:12px">
+  <div class="tabs" style="margin:0">
+    <a href="?" class="{{ 'on' if not show }}">Действующие</a>
+    <a href="?show=soon" class="{{ 'on' if show == 'soon' }}">Истекают</a>
+    <a href="?show=overdue" class="{{ 'on' if show == 'overdue' }}">Просрочены</a>
+    <a href="?show=all" class="{{ 'on' if show == 'all' }}">Весь журнал</a>
+  </div>
+  <form method="get" class="row"><input type="hidden" name="show" value="{{ show }}"><input type="text" name="q" value="{{ q }}" placeholder="Поиск: раствор, реактив, исполнитель" style="width:280px"></form>
+</div>
+<p class="printonly">Отчёт от {{ today[8:] }}.{{ today[5:7] }}.{{ today[:4] }}</p>
+{% if items %}
+<div class="tbl"><table>
+  <tr><th>Дата</th><th>Раствор, концентрация</th><th>Из чего приготовлен</th><th>Методика</th><th>Годен до</th><th>Приготовил</th><th class="noprint"></th></tr>
+  {% for it in items %}
+  <tr>
+    <td>{{ ru(it.prep_date) }}</td>
+    <td><a href="{{ P }}/solutions/{{ it.id }}">{{ it.name }}</a>{% if it.conc %}<br><small>{{ it.conc }}</small>{% endif %}{% if it.volume %} <small class="muted">· {{ it.volume }}</small>{% endif %}</td>
+    <td>{{ it.source_label }}{% if it.source and it.source.cert_value %}<br><small class="muted">{{ it.source.cert_value }}</small>{% endif %}
+      {% if it.problem %}<br><span class="st st-overdue wrap">⚠ {{ it.problem }}</span>{% endif %}</td>
+    <td>{{ it.method }}</td>
+    <td>{{ ru(it.expiry_date) }}{% if it.shelf_days %}<br><small class="muted">{{ it.shelf_days }} сут.</small>{% endif %}
+      <br><span class="st st-{{ it.status }}">{{ stock.SOLUTION_STATUS[it.status] }}</span></td>
+    <td>{{ it.performer }}</td>
+    <td class="noprint"><a class="btn small ghost" href="{{ P }}/solutions/new?copy={{ it.id }}" title="Новая запись с теми же данными и сегодняшней датой">Приготовить снова</a></td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}
+<div class="box"><p>{% if show or q %}Ничего не найдено.{% else %}Записей пока нет. <a href="{{ P }}/solutions/new">Запишите первый раствор</a> —
+  удобнее начать с <a href="{{ P }}/stock">реактивов и СО</a>, чтобы выбирать исходный реактив из списка.{% endif %}</p></div>
+{% endif %}
+{% endblock %}

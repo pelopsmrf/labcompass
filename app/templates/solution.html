@@ -1,0 +1,65 @@
+{% extends "base.html" %}{% block title %}{{ 'Запись журнала' if sol.id else 'Новый раствор' }}{% endblock %}
+{% block main %}
+<div style="max-width:820px">
+  <p><a href="{{ P }}/solutions">← К журналу растворов</a></p>
+  <h1>{{ 'Запись журнала растворов' if sol.id else 'Записать приготовленный раствор' }}</h1>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <div class="box">
+    <form method="post" action="{{ P }}/solutions/{{ sol.id or 'new' }}">
+      <label for="name">Что приготовлено</label>
+      <input type="text" id="name" name="name" value="{{ sol.name or '' }}" required maxlength="300" placeholder="Основной раствор ионов аммония">
+      <div class="grid2">
+        <div><label for="conc">Концентрация</label><input type="text" id="conc" name="conc" value="{{ sol.conc or '' }}" maxlength="100" placeholder="0,1 мг/см³"></div>
+        <div><label for="volume">Объём</label><input type="text" id="volume" name="volume" value="{{ sol.volume or '' }}" maxlength="50" placeholder="100 см³"></div>
+      </div>
+      <label for="source_id">Из чего приготовлен — реактив или СО из списка</label>
+      <select id="source_id" name="source_id">
+        <option value="">— не из списка (укажите ниже текстом) —</option>
+        {% for s in sources %}<option value="{{ s.id }}" data-until="{{ s.until or '' }}" {{ 'selected' if sol.source_id == s.id }}>{{ '[СО] ' if s.kind == 'СО' }}{{ stock.source_label(s) }}{% if s.until %} — годен до {{ ru(s.until) }}{% endif %}{% if s.archived %} (списан){% endif %}</option>{% endfor %}
+      </select>
+      <div id="src-warn" class="error" style="display:none;margin:8px 0 0"></div>
+      <label for="source_text">Или текстом / дополнительно</label>
+      <input type="text" id="source_text" name="source_text" value="{{ sol.source_text or '' }}" maxlength="300" placeholder="Например: из раствора № 12 от 01.10.2026; вода дистиллированная">
+      <label for="method">Методика (НД)</label>
+      <input type="text" id="method" name="method" value="{{ sol.method or '' }}" maxlength="300" placeholder="ПНД Ф 14.1:2:4.262-10, п. 7.2">
+      <div class="grid3">
+        <div><label for="prep_date">Дата приготовления</label><input type="date" id="prep_date" name="prep_date" value="{{ sol.prep_date or today }}" required></div>
+        <div><label for="shelf_days">Срок хранения, сут</label><input type="number" id="shelf_days" name="shelf_days" min="1" max="3650" value="{{ sol.shelf_days or '' }}" placeholder="30"></div>
+        <div><label for="expiry_date">Годен до</label><input type="date" id="expiry_date" name="expiry_date" value="{{ sol.expiry_date or '' }}">
+          <small class="muted">Посчитаем из срока хранения</small></div>
+      </div>
+      <div class="grid2">
+        <div><label for="performer">Приготовил</label><input type="text" id="performer" name="performer" value="{{ sol.performer or '' }}" maxlength="100"></div>
+        <div><label for="note">Примечание</label><input type="text" id="note" name="note" value="{{ sol.note or '' }}" maxlength="500" placeholder="Хранить в холодильнике"></div>
+      </div>
+      <p class="row" style="margin-top:20px">
+        <button class="btn" name="action" value="save">Сохранить</button>
+        {% if sol.id %}<button class="btn danger" name="action" value="delete" formnovalidate onclick="return confirm('Удалить запись из журнала?')">Удалить запись</button>{% endif %}
+      </p>
+    </form>
+  </div>
+</div>
+<script>
+// Срок годности раствора из срока хранения и предупреждение о просроченном исходном реактиве
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const ru = (s) => s.split("-").reverse().join(".");
+  function calc() {
+    const d = $("prep_date").value, n = parseInt($("shelf_days").value, 10);
+    if (d && n > 0) {
+      const t = new Date(d + "T00:00:00Z");
+      t.setUTCDate(t.getUTCDate() + n);
+      $("expiry_date").value = t.toISOString().slice(0, 10);
+    }
+    const opt = $("source_id").selectedOptions[0];
+    const until = opt && opt.dataset.until;
+    const warn = until && d && until < d;
+    $("src-warn").style.display = warn ? "" : "none";
+    if (warn) $("src-warn").textContent = "⚠ Исходный реактив/СО на дату приготовления просрочен (годен до " + ru(until) + "). Запись сохранится, но в журнале будет отметка.";
+  }
+  ["prep_date", "shelf_days", "source_id"].forEach((id) => $(id).addEventListener("change", calc));
+  $("shelf_days").addEventListener("input", calc);
+  calc();
+})();
+</script>
+{% endblock %}

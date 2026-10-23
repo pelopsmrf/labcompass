@@ -1,0 +1,71 @@
+{% extends "base.html" %}{% block title %}{{ item.name if item.id else 'Новый реактив или СО' }}{% endblock %}
+{% block main %}
+<div style="max-width:820px">
+  <p><a href="{{ P }}/stock">← К списку</a></p>
+  <h1>{{ item.name if item.id else 'Новый реактив или СО' }}</h1>
+  {% if item.archived %}<div class="notice">Позиция израсходована / списана.</div>{% endif %}
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <div class="box">
+    <form method="post" action="{{ P }}/stock/{{ item.id or 'new' }}">
+      <div class="grid3">
+        <div><label for="kind">Вид</label><select id="kind" name="kind">
+          {% for k in stock.KINDS %}<option value="{{ k }}" {{ 'selected' if item.kind == k }}>{{ stock.KIND_NAMES[k] }}</option>{% endfor %}</select></div>
+        <div style="grid-column: span 2"><label for="name">Наименование</label>
+          <input type="text" id="name" name="name" value="{{ item.name or '' }}" required maxlength="300" placeholder="Аммоний хлористый / ГСО состава раствора ионов аммония"></div>
+      </div>
+      <div class="grid3">
+        <div><label for="grade">Квалификация</label><input type="text" id="grade" name="grade" value="{{ item.grade or '' }}" maxlength="50" placeholder="хч, чда, осч" list="grades">
+          <datalist id="grades"><option>хч</option><option>чда</option><option>ч</option><option>осч</option><option>имп.</option></datalist></div>
+        <div><label for="standard">ГОСТ / ТУ / № ГСО</label><input type="text" id="standard" name="standard" value="{{ item.standard or '' }}" maxlength="200" placeholder="ГОСТ 3773-72 / ГСО 7015-93"></div>
+        <div><label for="lot">№ партии (экземпляра)</label><input type="text" id="lot" name="lot" value="{{ item.lot or '' }}" maxlength="100"></div>
+      </div>
+      <div class="grid2">
+        <div><label for="maker">Изготовитель</label><input type="text" id="maker" name="maker" value="{{ item.maker or '' }}" maxlength="200"></div>
+        <div class="for-so"><label for="cert_value">Аттестованное значение ± погрешность</label><input type="text" id="cert_value" name="cert_value" value="{{ item.cert_value or '' }}" maxlength="200" placeholder="1,00 ± 0,01 мг/см³"></div>
+      </div>
+      <div class="grid3">
+        <div><label for="made_date">Дата изготовления</label><input type="date" id="made_date" name="made_date" value="{{ item.made_date or '' }}"></div>
+        <div><label for="shelf_months">Срок годности, мес</label><input type="number" id="shelf_months" name="shelf_months" min="1" max="600" value="{{ item.shelf_months or '' }}" placeholder="36"></div>
+        <div><label for="expiry_date">Годен до</label><input type="date" id="expiry_date" name="expiry_date" value="{{ item.expiry_date or '' }}">
+          <small class="muted">Пусто — посчитаем: изготовлен + срок</small></div>
+      </div>
+      <div class="grid3">
+        <div><label for="received_date">Получен</label><input type="date" id="received_date" name="received_date" value="{{ item.received_date or '' }}"></div>
+        <div><label for="opened_date">Вскрыт</label><input type="date" id="opened_date" name="opened_date" value="{{ item.opened_date or '' }}"></div>
+        <div><label for="qty">Количество</label><input type="text" id="qty" name="qty" value="{{ item.qty or '' }}" maxlength="100" placeholder="500 г, 3 ампулы"></div>
+      </div>
+      <label for="place">Место хранения</label>
+      <input type="text" id="place" name="place" value="{{ item.place or '' }}" maxlength="200" placeholder="Шкаф № 2, полка 3">
+      <details {{ 'open' if item.ext_until }} style="margin-top:14px"><summary><b>Продление срока годности</b> <small class="muted">— если пригодность подтверждена проверкой</small></summary>
+        <div class="grid2">
+          <div><label for="ext_until">Продлён до</label><input type="date" id="ext_until" name="ext_until" value="{{ item.ext_until or '' }}"></div>
+          <div><label for="ext_doc">Основание</label><input type="text" id="ext_doc" name="ext_doc" value="{{ item.ext_doc or '' }}" maxlength="200" placeholder="Протокол проверки пригодности № 12 от 01.10.2026"></div>
+        </div>
+      </details>
+      <label for="note">Примечание</label>
+      <input type="text" id="note" name="note" value="{{ item.note or '' }}" maxlength="500">
+      <p class="row" style="margin-top:20px">
+        <button class="btn" name="action" value="save">Сохранить</button>
+        {% if item.id %}
+          {% if item.archived %}<button class="btn ghost" name="action" value="restore" formnovalidate>Вернуть в список</button>
+          {% else %}<button class="btn danger" name="action" value="archive" formnovalidate>Израсходован / списан</button>
+            <a class="btn ghost" href="{{ P }}/solutions/new?source={{ item.id }}">Приготовить раствор</a>{% endif %}
+        {% endif %}
+      </p>
+    </form>
+  </div>
+  {% if used %}
+  <h2>Растворы из этой позиции</h2>
+  <div class="tbl"><table><tr><th>Дата</th><th>Раствор</th><th>Годен до</th><th>Приготовил</th></tr>
+    {% for s in used %}<tr><td>{{ ru(s.prep_date) }}</td><td><a href="{{ P }}/solutions/{{ s.id }}">{{ s.name }}</a>{% if s.conc %}, {{ s.conc }}{% endif %}</td>
+      <td>{{ ru(s.expiry_date) }}</td><td>{{ s.performer }}</td></tr>{% endfor %}</table></div>
+  {% endif %}
+</div>
+<script>
+// Срок пересчитывается, если поменяли дату изготовления или срок годности; поле аттестованного значения — только для СО
+["made_date", "shelf_months"].forEach((id) => document.getElementById(id).addEventListener("change", () => (document.getElementById("expiry_date").value = "")));
+const kind = document.getElementById("kind");
+const so = () => document.querySelectorAll(".for-so").forEach((el) => (el.style.visibility = kind.value === "СО" || document.getElementById("cert_value").value ? "visible" : "hidden"));
+kind.addEventListener("change", so); so();
+</script>
+{% endblock %}

@@ -99,6 +99,47 @@ CREATE TABLE IF NOT EXISTS vlk_results (
     created TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS vlk_results_ind ON vlk_results(indicator_id);
+CREATE TABLE IF NOT EXISTS stock (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    kind TEXT NOT NULL DEFAULT 'реактив', -- реактив, СО, другое
+    name TEXT NOT NULL,
+    grade TEXT NOT NULL DEFAULT '',     -- квалификация: хч, чда, осч
+    standard TEXT NOT NULL DEFAULT '',  -- ГОСТ / ТУ / № ГСО по реестру
+    maker TEXT NOT NULL DEFAULT '',     -- изготовитель
+    lot TEXT NOT NULL DEFAULT '',       -- № партии (экземпляра)
+    cert_value TEXT NOT NULL DEFAULT '', -- аттестованное значение ± погрешность (для СО)
+    made_date TEXT,                     -- дата изготовления
+    shelf_months INTEGER,               -- срок годности от изготовления, мес
+    expiry_date TEXT,                   -- годен до
+    received_date TEXT,                 -- дата получения
+    opened_date TEXT,                   -- дата вскрытия
+    qty TEXT NOT NULL DEFAULT '',       -- количество (текстом)
+    place TEXT NOT NULL DEFAULT '',     -- место хранения
+    ext_until TEXT,                     -- срок продлён до (по проверке пригодности)
+    ext_doc TEXT NOT NULL DEFAULT '',   -- основание продления: № протокола
+    note TEXT NOT NULL DEFAULT '',
+    archived INTEGER NOT NULL DEFAULT 0, -- израсходован / списан
+    updated TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS stock_user ON stock(user_id, archived);
+CREATE TABLE IF NOT EXISTS solutions (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    name TEXT NOT NULL,                 -- что приготовлено
+    conc TEXT NOT NULL DEFAULT '',      -- концентрация
+    volume TEXT NOT NULL DEFAULT '',    -- объём
+    source_id INTEGER REFERENCES stock(id), -- из чего (запись склада)
+    source_text TEXT NOT NULL DEFAULT '', -- из чего (текстом, если нет на складе)
+    method TEXT NOT NULL DEFAULT '',    -- методика (НД)
+    prep_date TEXT NOT NULL,            -- дата приготовления
+    shelf_days INTEGER,                 -- срок хранения, сут
+    expiry_date TEXT,                   -- годен до
+    performer TEXT NOT NULL DEFAULT '', -- приготовил
+    note TEXT NOT NULL DEFAULT '',
+    created TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS solutions_user ON solutions(user_id, prep_date);
 CREATE TABLE IF NOT EXISTS leads (
     id INTEGER PRIMARY KEY,
     created TEXT NOT NULL DEFAULT (datetime('now')),
